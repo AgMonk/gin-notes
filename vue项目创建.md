@@ -65,3 +65,11 @@ const copy = async () => {
 
 ```
 
+# axios
+
+## 安装
+
+```npm
+npm install axios -s
+```
+
