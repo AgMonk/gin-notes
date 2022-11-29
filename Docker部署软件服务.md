@@ -86,3 +86,72 @@ services:
 
 ```
 
+# Nginx
+
+## 配置文件
+
+nginx.conf (官方默认)
+
+```nginx
+
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
+
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+
+```
+
+添加额外配置可在`conf.d`目录下添加`.conf`文件
+
+## run
+
+```shell
+docker run -p 8080:80 -d --name nginx01 -v /home/nginx/html:/usr/share/nginx/html -v /home/nginx/conf.d:/etc/nginx/conf.d --restart=always nginx:1.22
+```
+
+
+
+## compose
+
+```yml
+services:
+    nacos:
+      container_name: nginx01
+      image: nginx:1.22
+      restart: always
+      ports:
+        - 8080:80
+
+      volumes:
+      	- /home/nginx/html:/usr/share/nginx/html
+      	- /home/nginx/conf.d:/etc/nginx/conf.d
+
+```
+
