@@ -1,3 +1,11 @@
+# Docker-compose
+
+```shell
+docker-compose up --build --force-recreate --d
+```
+
+重新build、重新创建容器、后台运行
+
 # MySql
 
 ## run
@@ -148,7 +156,6 @@ services:
       restart: always
       ports:
         - 8080:80
-
       volumes:
       	- /home/nginx/html:/usr/share/nginx/html
       	- /home/nginx/conf.d:/etc/nginx/conf.d
