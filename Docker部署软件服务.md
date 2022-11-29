@@ -8,6 +8,8 @@ docker-compose up --build --force-recreate --d
 
 # MySql
 
+需要映射数据库文件的存储目录
+
 ## run
 
 ```shell
@@ -34,6 +36,8 @@ services:
 
 
 # Redis
+
+需要使用配置文件开启持久化，并映射持久化文件目录
 
 ## 自定义配置文件
 
@@ -95,6 +99,8 @@ services:
 ```
 
 # Nginx
+
+需要映射静态文件的存放目录、额外配置的存放目录
 
 ## 配置文件
 
