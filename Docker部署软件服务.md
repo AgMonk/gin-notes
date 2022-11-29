@@ -3,7 +3,7 @@
 ## run
 
 ```shell
-docker run -p 3306:3306 -e MYSQL_ROOT_PASSWORD=12345678 -d --name mysql --restart=always -v /root/data:/var/lib/mysql mysql:5.7
+docker run -p 3306:3306 -e MYSQL_ROOT_PASSWORD=12345678 -d --name mysql --restart=always -v /home/mysql_data:/var/lib/mysql mysql:5.7
 ```
 
 ## compose
@@ -20,7 +20,7 @@ services:
 	    MYSQL_ROOT_PASSWORD: 12345678
     	TZ: Asia/Shanghai
     volumes:
-	    - /opt/docker_mynginx/mysql_data:/var/lib/mysql
+	    - /home/mysql_data:/var/lib/mysql
 ```
 
 
@@ -40,6 +40,9 @@ save 60 1
 
 ## 日志层级
 loglevel warning
+
+## 密码
+requirepass 123456
 ```
 
 ## run
