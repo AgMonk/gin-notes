@@ -162,3 +162,27 @@ services:
 
 ```
 
+# Sentinel-Dashboard
+
+## run
+
+```shell
+docker run -p 8858:8858 -p 8719:8719 -d --name sentinel-dashboard -e TZ="Asia/Shanghai" --restart=always bladex/sentinel-dashboard:latest
+```
+
+## compose
+
+```yml
+services:
+    sentinel-dashboard:
+      container_name: sentinel-dashboard
+      image: bladex/sentinel-dashboard:latest
+      restart: always
+      ports:
+        - 8719:8719
+        - 8858:8858
+      environment:	   
+    	TZ: Asia/Shanghai
+    
+```
+
