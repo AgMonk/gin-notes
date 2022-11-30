@@ -21,16 +21,16 @@ docker run -p 3306:3306 -e MYSQL_ROOT_PASSWORD=12345678 -d --name mysql --restar
 ```yaml
 services:
   mysql:
-	container_name: mysql
-	image: mysql:5.7
-	ports:
+    container_name: mysql
+    image: mysql:5.7
+    ports:
       - "3306:3306"
     restart: always
     environment:
-		MYSQL_ROOT_PASSWORD: 12345678
-		TZ: Asia/Shanghai
+        MYSQL_ROOT_PASSWORD: 12345678
+        TZ: Asia/Shanghai
     volumes:
-	- /home/mysql_data:/var/lib/mysql
+     - /home/mysql_data:/var/lib/mysql
 ```
 
 
