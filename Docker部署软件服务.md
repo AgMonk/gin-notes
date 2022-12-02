@@ -30,7 +30,7 @@ services:
         MYSQL_ROOT_PASSWORD: 12345678
         TZ: Asia/Shanghai
     volumes:
-    - /home/mysql_data:/var/lib/mysql
+    - /home/mysql_data:/var/lib/mysql 
 ```
 
 
@@ -192,3 +192,4 @@ services:
     
 ```
 
+# Potainer
