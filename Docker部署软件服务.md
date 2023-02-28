@@ -188,8 +188,56 @@ services:
         - 8719:8719
         - 8858:8858
       environment:	   
-    	TZ: Asia/Shanghai
-    
+        TZ: Asia/Shanghai    
 ```
 
 # Potainer
+
+# ElasticSearch + Kibana
+
+## run
+
+es:
+
+```shell
+docker run -d --name elastic-search -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node"  -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" --restart=always elasticsearch:7.14.0
+```
+
+kibana:
+
+```shell
+docker run -d --name kibana -p 5601:5601 -e "ELASTICSEARCH_HOSTS=http://elastic-search:9200" --restart=always kibana:7.14.0
+```
+
+## compose
+
+```yml
+services:
+    elastic-search:
+      container_name: elastic-search
+      image: elasticsearch:7.14.0
+      restart: always
+      ports:
+        - 9200:9200
+        - 9300:9300
+      volumes:
+      #  - /home/elastic-search/es/data:/usr/share/elasticsearch/data
+    #    - /home/elastic-search/es/config:/usr/share/elasticsearch/config
+     #   - /home/elastic-search/es/plugin:/usr/share/elasticsearch/plugin
+      environment:
+        TZ: Asia/Shanghai
+        discovery.type: single-node
+        ES_JAVA_OPTS: -Xms512m -Xmx512m
+    kibana:
+      container_name: kibana
+      image: kibana:7.14.0
+      restart: always
+      ports:
+        - 5601:5601
+      volumes:
+        - /home/elastic-search/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+      environment:
+        TZ: Asia/Shanghai
+        ELASTICSEARCH_HOSTS: http://elastic-search:9200
+```
+
