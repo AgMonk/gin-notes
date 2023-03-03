@@ -195,6 +195,14 @@ services:
 
 # ElasticSearch + Kibana
 
+## IK分词器
+
+下载：https://github.com/medcl/elasticsearch-analysis-ik/releases/tag/v7.14.0
+
+解压到任意名称的文件夹中，通过挂载数据卷到`/usr/share/elasticsearch/plugins`中
+
+分词器版本需要与ES版本严格相等
+
 ## run
 
 es:
@@ -223,7 +231,7 @@ services:
       volumes:
       #  - /home/elastic-search/es/data:/usr/share/elasticsearch/data
     #    - /home/elastic-search/es/config:/usr/share/elasticsearch/config
-     #   - /home/elastic-search/es/plugin:/usr/share/elasticsearch/plugin
+        - /home/elastic-search/es/plugins:/usr/share/elasticsearch/plugins
       environment:
         TZ: Asia/Shanghai
         discovery.type: single-node
@@ -234,8 +242,8 @@ services:
       restart: always
       ports:
         - 5601:5601
-      volumes:
-        - /home/elastic-search/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+     # volumes:
+     #   - /home/elastic-search/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
       environment:
         TZ: Asia/Shanghai
         ELASTICSEARCH_HOSTS: http://elastic-search:9200
