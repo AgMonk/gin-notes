@@ -20,12 +20,16 @@ repodata/repomd.xml: [Errno 14] HTTP Error 404 - Not Found
 
 尝试修改yum源解决：https://blog.csdn.net/m0_60028455/article/details/122876291
 
-自启动和启动
+## 自启动和启动
 
 ```bash
 systemctl enable docker
 systemctl start docker
 ```
+
+## 开启远程连接及HTTPS证书
+
+https://blog.csdn.net/hjg719/article/details/127050475
 
 ## Docker-compose
 
@@ -34,8 +38,8 @@ systemctl start docker
 https://docs.docker.com/compose/install/linux/
 
 ```shell
- yum update
-sudo yum install docker-compose-plugin
+yum update
+yum install docker-compose-plugin
 ```
 
 ### 常用指令
@@ -46,17 +50,27 @@ docker-compose up --build --force-recreate --d
 
 重新build、重新创建容器、后台运行
 
-# MySql
+## Potainer
+
+### 安装
+
+```bash
+docker run -d -p 9000:9000 --restart=always -v /var/run/docker.sock:/var/run/docker.sock --name portainer lihaixin/portainer
+```
+
+# 应用软件
+
+## MySql
 
 需要映射数据库文件的存储目录
 
-## run
+### run
 
 ```shell
 docker run -p 3306:3306 -e MYSQL_ROOT_PASSWORD=12345678 -d --name mysql --restart=always -v /home/mysql_data:/var/lib/mysql mysql:5.7
 ```
 
-## compose
+### compose
 
 ```yaml
 services:
@@ -75,11 +89,11 @@ services:
 
 
 
-# Redis
+## Redis
 
 需要使用配置文件开启持久化，并映射持久化文件目录
 
-## 自定义配置文件
+### 自定义配置文件
 
 redis.conf
 
@@ -97,13 +111,13 @@ loglevel warning
 requirepass 123456
 ```
 
-## run
+### run
 
 ```shell
 docker run -p 6379:6379 -d --name redis --restart=always -v /home/redis:/data redis:5.0.12 redis-server /data/redis.conf
 ```
 
-## compose
+### compose
 
 ```yaml
 services:
@@ -118,11 +132,11 @@ services:
       - /home/redis:/data
 ```
 
-# Nacos
+## Nacos
 
-## run
+### run
 
-## compose
+### compose
 
 ```yml
 services:
@@ -138,11 +152,11 @@ services:
 
 ```
 
-# Nginx
+## Nginx
 
 需要映射静态文件的存放目录、额外配置的存放目录
 
-## 配置文件
+### 配置文件
 
 nginx.conf (官方默认)
 
@@ -184,7 +198,7 @@ http {
 
 添加额外配置可在`conf.d`目录下添加`.conf`文件
 
-## run
+### run
 
 ```shell
 docker run -p 8080:80 -d --name nginx01 -v /home/nginx/html:/usr/share/nginx/html -v /home/nginx/conf.d:/etc/nginx/conf.d --restart=always nginx:1.22
@@ -192,7 +206,7 @@ docker run -p 8080:80 -d --name nginx01 -v /home/nginx/html:/usr/share/nginx/htm
 
 
 
-## compose
+### compose
 
 ```yml
 services:
@@ -208,15 +222,15 @@ services:
 
 ```
 
-# Sentinel-Dashboard
+## Sentinel-Dashboard
 
-## run
+### run
 
 ```shell
 docker run -p 8858:8858 -p 8719:8719 -d --name sentinel-dashboard -e TZ="Asia/Shanghai" --restart=always bladex/sentinel-dashboard:latest
 ```
 
-## compose
+### compose
 
 ```yml
 services:
@@ -231,11 +245,11 @@ services:
         TZ: Asia/Shanghai    
 ```
 
-# Potainer
 
-# ElasticSearch + Kibana
 
-## IK分词器
+## ElasticSearch + Kibana
+
+### IK分词器
 
 下载：https://github.com/medcl/elasticsearch-analysis-ik/releases/tag/v7.14.0
 
@@ -243,7 +257,7 @@ services:
 
 分词器版本需要与ES版本严格相等
 
-## run
+### run
 
 es:
 
@@ -257,7 +271,7 @@ kibana:
 docker run -d --name kibana -p 5601:5601 -e "ELASTICSEARCH_HOSTS=http://elastic-search:9200" --restart=always kibana:7.14.0
 ```
 
-## compose
+### compose
 
 ```yml
 services:
