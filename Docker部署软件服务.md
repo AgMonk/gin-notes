@@ -1,4 +1,44 @@
-# Docker-compose
+# Docker引擎安装
+
+[官方文档](https://docs.docker.com/engine/install/centos/)
+
+## CentOS
+
+```bash
+curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
+```
+或
+```bash
+curl -sSL https://get.daocloud.io/docker | sh
+```
+
+如果出现如下错误:
+
+```
+repodata/repomd.xml: [Errno 14] HTTP Error 404 - Not Found
+```
+
+尝试修改yum源解决：https://blog.csdn.net/m0_60028455/article/details/122876291
+
+自启动和启动
+
+```bash
+systemctl enable docker
+systemctl start docker
+```
+
+## Docker-compose
+
+### 安装
+
+https://docs.docker.com/compose/install/linux/
+
+```shell
+ yum update
+sudo yum install docker-compose-plugin
+```
+
+### 常用指令
 
 ```shell
 docker-compose up --build --force-recreate --d
