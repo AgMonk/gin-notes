@@ -29,6 +29,16 @@ systemctl start docker
 
 ## 开启远程连接及HTTPS证书
 
+打开配置文件`/usr/lib/systemd/system/docker.service`，找到一行以`ExecStart`开头的配置，在后面增加:
+```bash
+--tlsverify --tlscacert=/etc/docker/ca.pem --tlscert=/etc/docker/server-cert.pem --tlskey=/etc/docker/server-key.pem -H tcp://0.0.0.0:2376
+```
+意为指定远程连接的端口，并指定证书文件的位置，然后重启服务
+```bash
+systemctl daemon-reload && systemctl  restart docker
+```
+
+生成证书：
 https://blog.csdn.net/hjg719/article/details/127050475
 
 ## Docker-compose
