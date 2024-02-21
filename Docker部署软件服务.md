@@ -7,7 +7,9 @@
 ```bash
 curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
 ```
+
 或
+
 ```bash
 curl -sSL https://get.daocloud.io/docker | sh
 ```
@@ -30,10 +32,13 @@ systemctl start docker
 ## 开启远程连接及HTTPS证书
 
 打开配置文件`/usr/lib/systemd/system/docker.service`，找到一行以`ExecStart`开头的配置，在后面增加:
+
 ```bash
 --tlsverify --tlscacert=/etc/docker/ca.pem --tlscert=/etc/docker/server-cert.pem --tlskey=/etc/docker/server-key.pem -H tcp://0.0.0.0:2376
 ```
+
 意为指定远程连接的端口，并指定证书文件的位置，然后重启服务
+
 ```bash
 systemctl daemon-reload && systemctl  restart docker
 ```
@@ -171,7 +176,6 @@ services:
 nginx.conf (官方默认)
 
 ```nginx
-
 user  nginx;
 worker_processes  auto;
 
@@ -311,5 +315,54 @@ services:
       environment:
         TZ: Asia/Shanghai
         ELASTICSEARCH_HOSTS: http://elastic-search:9200
+```
+
+## Nexus
+
+Maven私服
+
+### 公共
+
+需要在宿主机中创建一个挂载目录并赋予修改权限，这里假设目录为`/home/nexus/data`，该目录需要映射到容器内的`/nexus-data`目录
+
+```bash
+mkdir /home/nexus/data
+chown -R 200 /home/nexus/data
+```
+
+容器启动完毕后，进入该目录执行如下命令可以查看`admin`账号的初始密码
+
+```bash
+cat admin.password
+```
+
+### run
+
+拉取镜像
+
+```bash
+docker pull sonatype/nexus3:latest
+```
+
+运行
+
+```bash
+docker run -d -p 8081:8081 --name nexus --restart=always -e INSTALL4J_ADD_VM_PARAMS="-Xms512m -Xmx512m -XX:MaxDirectMemorySize=1200m" -v /home/nexus/data:/nexus-data sonatype/nexus3
+```
+
+### compose
+
+```yml
+services:
+  nexus:
+    container_name: nexus
+    image: sonatype/nexus3:latest
+    ports:
+      - "8081:8081"
+    restart: always
+    environment:
+        INSTALL4J_ADD_VM_PARAMS: -Xms512m -Xmx512m -XX:MaxDirectMemorySize=1200m
+    volumes:
+    - /home/nexus/data:/nexus-data
 ```
 
