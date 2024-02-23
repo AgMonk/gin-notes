@@ -4,6 +4,7 @@
 
 ```npm
 npm install element-plus -s
+npm install @element-plus/icons-vue -s
 ```
 
 ## 引入
