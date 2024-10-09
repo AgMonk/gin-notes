@@ -29,6 +29,20 @@ systemctl enable docker
 systemctl start docker
 ```
 
+## 修改控制台日志体积上限
+
+创建或编辑这个文件`/etc/docker/daemon.json`，填写或添加如下内容
+
+```json
+{	
+	"log-driver": "json-file",
+	"log-opts": {
+		"max-size": "50m",
+		"max-file": "1"
+	}
+}
+```
+
 ## 构建自己通用基础镜像
 
 - 以`openjdk:18`作为基础镜像
