@@ -24,12 +24,17 @@ https://dockerproxy.cn/
 
 # Docker Client配置
 
-1. 创建或编辑这个文件`/etc/docker/daemon.json`，填写如下内容
+1. 创建或编辑这个文件`/etc/docker/daemon.json`，填写或添加如下内容
 
 ```json
 {
-    "insecure-registries": ["192.168.0.10:8082"],
-    "registry-mirrors": ["http://192.168.0.10:8082"]
+	"insecure-registries": ["192.168.0.10:8082"],
+	"registry-mirrors": ["http://192.168.0.10:8082"],
+	"log-driver": "json-file",
+	"log-opts": {
+		"max-size": "50m",
+		"max-file": "1"
+	}
 }
 ```
 
