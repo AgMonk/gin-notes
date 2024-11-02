@@ -407,3 +407,27 @@ services:
     volumes:
     - /home/nexus/data:/nexus-data
 ```
+
+## InfluxDB
+
+### compose
+
+```yml
+services:
+  influxdb:
+    image: influxdb:2.7.10
+    container_name: influxdb2
+    restart: always
+    volumes:
+      - /home/influxdb/influxdb2:/var/lib/influxdb2
+      - /home/influxdb/config:/etc/influxdb2
+    ports:
+      - 8086:8086  
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: root
+      DOCKER_INFLUXDB_INIT_PASSWORD: root
+      DOCKER_INFLUXDB_INIT_ORG: docs
+      DOCKER_INFLUXDB_INIT_BUCKET: home
+```
+
