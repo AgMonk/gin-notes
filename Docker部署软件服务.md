@@ -408,7 +408,18 @@ services:
     - /home/nexus/data:/nexus-data
 ```
 
-## InfluxDB
+## InfluxDB+Telegraf
+
+### 配置文件
+
+Telegraf需要配置文件来启动，这里路径为：`/home/telegraf/exam02_conf.conf`
+
+文件可以使用`InfluxDB`的功能来生成：
+
+1. 左侧导航栏`Load Data` - `Telegraf`，`CREATE CONFIGURATION`
+2. 选择一个Bucket，和模板（如`system`），确认
+3. 点击`setup instructions`，点击`GENERATE NEW API TOKEN`生成一个token，复制
+4. 点击配置文件名称，查找token配置，粘贴替换；保存之后下载配置文件，放入上述路径
 
 ### compose
 
@@ -426,8 +437,19 @@ services:
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: root
-      DOCKER_INFLUXDB_INIT_PASSWORD: root
+      DOCKER_INFLUXDB_INIT_PASSWORD: root#123
       DOCKER_INFLUXDB_INIT_ORG: docs
       DOCKER_INFLUXDB_INIT_BUCKET: home
+  telegraf:
+     image: telegraf:latest
+     container_name: telegraf
+     restart: always
+     depends_on:
+       - influxdb
+     volumes:
+       - /home/telegraf/exam02_conf.conf:/etc/telegraf/telegraf.conf:ro
+     ports:
+      - 8125:8125
 ```
 
+### 
