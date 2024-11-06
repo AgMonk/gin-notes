@@ -412,14 +412,12 @@ services:
 
 ### 配置文件
 
-Telegraf需要配置文件来启动，这里路径为：`/home/telegraf/exam02_conf.conf`
-
-文件可以使用`InfluxDB`的功能来生成：
+Telegraf需要配置文件来启动，这里我们将其放在`InfluxDB`中，先单独启动`InfluxDB`：
 
 1. 左侧导航栏`Load Data` - `Telegraf`，`CREATE CONFIGURATION`
 2. 选择一个Bucket，和模板（如`system`），确认
-3. 点击`setup instructions`，点击`GENERATE NEW API TOKEN`生成一个token，复制
-4. 点击配置文件名称，查找token配置，粘贴替换；保存之后下载配置文件，放入上述路径
+3. 点击`setup instructions`，点击`GENERATE NEW API TOKEN`生成一个token，复制TOKEN和下方的URL
+4. 补全`telegraf`配置部分，启动`telegraf`，如果更新了配置文件的内容，需要重启`telegraf`
 
 ### compose
 
@@ -436,20 +434,25 @@ services:
       - 8086:8086  
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
+      # 初始用户名
       DOCKER_INFLUXDB_INIT_USERNAME: root
+      # 初始化密码
       DOCKER_INFLUXDB_INIT_PASSWORD: root#123
       DOCKER_INFLUXDB_INIT_ORG: docs
+      # 初始Bucket名称
       DOCKER_INFLUXDB_INIT_BUCKET: home
   telegraf:
      image: telegraf:latest
      container_name: telegraf
-     restart: always
+     restart: always     
+     # 在 influxdb 启动后才启动
      depends_on:
        - influxdb
-     volumes:
-       - /home/telegraf/exam02_conf.conf:/etc/telegraf/telegraf.conf:ro
      ports:
       - 8125:8125
+     environment:
+       INFLUX_TOKEN: #上面第三步生成的TOKEN
+     # 替换启动命令，指向influxdb中的配置文件
+     command: /entrypoint.sh telegraf --config #上面第三步的URL
 ```
 
-### 
