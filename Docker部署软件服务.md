@@ -268,7 +268,7 @@ docker run -p 8080:80 -d --name nginx01 -v /home/nginx/html:/usr/share/nginx/htm
 
 ```yml
 services:
-    nacos:
+    nginx:
       container_name: nginx01
       image: nginx:1.22
       restart: always
