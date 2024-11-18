@@ -22,6 +22,23 @@ repodata/repomd.xml: [Errno 14] HTTP Error 404 - Not Found
 
 尝试修改yum源解决：https://blog.csdn.net/m0_60028455/article/details/122876291
 
+## debian
+
+```shell
+dpkg -i ./containerd.io_1.7.18-1_amd64.deb \
+  ./docker-ce_27.0.3-1~debian.12~bookworm_amd64.deb \
+  ./docker-ce-cli_27.0.3-1~debian.12~bookworm_amd64.deb \
+  ./docker-buildx-plugin_0.15.1-1~debian.12~bookworm_amd64.deb \
+  ./docker-compose-plugin_2.28.1-1~debian.12~bookworm_amd64.deb
+```
+
+## 其他
+
+```shell
+curl -fsSl get.docker.com -o get-docker.sh
+sh get-docker.sh --mirror Aliyun
+```
+
 ## 自启动和启动
 
 ```bash
@@ -29,21 +46,26 @@ systemctl enable docker
 systemctl start docker
 ```
 
-## 修改控制台日志体积上限
+## 修改镜像代理、控制台日志体积上限
 
 创建或编辑这个文件`/etc/docker/daemon.json`，填写或添加如下内容
 
 ```json
-{	
-	"log-driver": "json-file",
-	"log-opts": {
-		"max-size": "50m",
-		"max-file": "1"
-	}
+{
+	"insecure-registries": ["192.168.0.10:8082"],
+	"registry-mirrors": ["http://192.168.0.10:8082"],
+	"log-driver":"json-file",
+	  "log-opts":{
+     	 "max-size" :"50m",
+      "max-file":"1"
+	  }
 }
 ```
 
-## 构建自己通用基础镜像
+- 上述配置中`192.168.0.10:8082`为Nexus私服开放的端口，由于非https协议需要额外配置`insecure-registries`
+- 目前国内docker镜像服务被禁： [获取其他镜像代理服务地址](https://xuanyuan.me/blog/archives/1154)
+
+## 构建自己通用的基础镜像
 
 - 以`openjdk:18`作为基础镜像
 - 配置环境变量，包括时区以及JAVA使用的
@@ -189,26 +211,6 @@ services:
       - /home/redis:/data
 ```
 
-## Nacos
-
-### run
-
-### compose
-
-```yml
-services:
-    nacos:
-      container_name: nacos_01
-      image: nacos/nacos-server:2.0.3
-      restart: always
-      ports:
-        - 8848:8848
-      environment:
-        PREFER_HOST_MODE: hostname
-        MODE: standalone
-
-```
-
 ## Nginx
 
 需要映射静态文件的存放目录、额外配置的存放目录
@@ -278,31 +280,6 @@ services:
 
 ```
 
-## Sentinel-Dashboard
-
-### run
-
-```shell
-docker run -p 8858:8858 -p 8719:8719 -d --name sentinel-dashboard -e TZ="Asia/Shanghai" --restart=always bladex/sentinel-dashboard:latest
-```
-
-### compose
-
-```yml
-services:
-    sentinel-dashboard:
-      container_name: sentinel-dashboard
-      image: bladex/sentinel-dashboard:latest
-      restart: always
-      ports:
-        - 8719:8719
-        - 8858:8858
-      environment:	   
-        TZ: Asia/Shanghai    
-```
-
-
-
 ## ElasticSearch + Kibana
 
 ### IK分词器
@@ -361,7 +338,7 @@ services:
 
 ## Nexus
 
-Maven私服
+仓库私服，包含：docker镜像、maven等
 
 ### 公共
 
@@ -455,4 +432,52 @@ services:
      # 替换启动命令，指向influxdb中的配置文件
      command: /entrypoint.sh telegraf --config #上面第三步的URL
 ```
+
+# 微服务组件
+
+## Nacos
+
+### run
+
+### compose
+
+```yml
+services:
+    nacos:
+      container_name: nacos_01
+      image: nacos/nacos-server:v2.4.3
+      restart: always
+      ports:
+        - 8848:8848
+      environment:
+        PREFER_HOST_MODE: hostname
+        MODE: standalone
+
+```
+
+## Sentinel-Dashboard
+
+启动后访问8858端口，默认账号密码均为`sentinel`
+
+### run
+
+```shell
+docker run -p 8858:8858 -p 8719:8719 -d --name sentinel-dashboard -e TZ="Asia/Shanghai" --restart=always bladex/sentinel-dashboard:latest
+```
+
+### compose
+
+```yml
+services:
+    sentinel-dashboard:
+      container_name: sentinel-dashboard
+      image: bladex/sentinel-dashboard:latest
+      restart: always
+      ports:
+        - 8719:8719
+        - 8858:8858
+      environment:	   
+        TZ: Asia/Shanghai    
+```
+
 
