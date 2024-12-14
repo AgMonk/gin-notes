@@ -108,7 +108,7 @@ data class Route(
 
 ```
 
-打开`MainActivity`，在`MainActivity`类外新建三个可组合函数，他们将是三个导航按钮各自对应的页面，这里我们先简单地放一个全宽的文本组件：
+打开`MainActivity`，在`MainActivity`类外新建三个可组合函数，他们将是三个导航按钮各自对应的路由页面，这里我们先简单地放一个全宽的文本组件：
 
 ```kotlin
 @Composable
@@ -184,7 +184,7 @@ fun Index(initialIndex: Int = 1) {
 }
 ```
 
-修改`MainActivity`中的`setContent`方法为，并清理预设的无效可组合函数：
+修改`MainActivity`中的`setContent`方法为，并清理预设的可组合函数：
 
 ```kotlin
 setContent {
@@ -194,4 +194,76 @@ setContent {
 }
 ```
 
-在手机上运行APP，可以看到路由切换已经实现，但是很明显可以发现一个问题：切换过程中文字重叠了，而不是我们常见的滑动切换的效果，下一节将解决这个问题
+在手机上运行APP，可以看到路由切换已经实现，但是很明显可以发现一个问题：切换过程中文字重叠了，而不是我们常见的滑动切换的效果，所以我们给`NavHost`函数增加两个参数：
+
+```kotlin
+NavHost(
+    navController = navController,
+    startDestination = routes[initialIndex].route,
+    modifier = Modifier.padding(innerPadding),
+    // 增加的参数，分别表示页面进入和离开屏幕的动画，耗时500毫秒，其中 it 表示动画方向
+    enterTransition = { slideInHorizontally(tween(500)) { it  } },
+    exitTransition = { slideOutHorizontally(tween(500)) { -it  } }
+) 
+```
+
+运行APP可以看到已经有滑动动画了，但是页面的进出总是从同一个方向，而一般习惯应该是根据切换前后的相对位置决定进出的方向，比如1切到2时，1从左边出去2从右边进来，2切到1时2从右边出去1从左边进来
+
+那么我们在`Index`函数中增加一个方向变量`direction`，然后在点击导航按钮时，比较当前路由和目标路由的序号大小来修改该变量为`1`或者`-1`，最后让决定动画方向的`it`乘以该变量，完整的`Index`函数如下：
+
+```kotlin
+@Preview
+@Composable
+fun Index(initialIndex: Int = 1) {
+    // 导航控制器
+    val navController = rememberNavController()
+    // 选中的index
+    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
+    // 动画方向
+    var direction by remember { mutableIntStateOf(1) }
+    // 路由配置
+    val routes = listOf(
+        Route("daily", "日常") { DailyWork() },
+        Route("community", "社区") { CommunityIndex() },
+        Route("setting", "设置") { Setting() },
+    )
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = {
+            NavigationBar {
+                routes.forEachIndexed { index, route ->
+                    NavigationBarItem(
+                        label = { Text(route.title) },
+                        selected = selectedIndex == index,
+                        onClick = {
+                            if (selectedIndex != index) {
+                                direction = if (selectedIndex > index) -1 else 1
+                                navController.navigate(route.route)
+                                selectedIndex = index
+                            }
+                        },
+                        icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = routes[initialIndex].route,
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { slideInHorizontally(tween(500)) { it * direction } },
+            exitTransition = { slideOutHorizontally(tween(500)) { -it * direction } }
+        ) {
+            routes.forEach { route -> composable(route=route.route,content = route.content)  }
+        }
+    }
+}
+```
+
+这里有一个有意思的点，当我们从路由1切换到路由3的时候：
+
+- 如果我们是使用传统的`ViewPager2`+`Fragment`来实现它，这个切换操作会“路过”路由2，尽管是一瞬间但是也触发了路由2的Fragment的相关生命周期，但其实这是完全不必要的，还增加了卡顿
+- 而使用`Navigation`实现并不会“路过”路由2（在3个路由函数中打桩即可确认），路由3是直接渲染在右侧屏幕外之后移入屏幕的
+- 当路由页面较多时这种方式的性能优势明显，不过相应的这种方式不提供手势翻页的
