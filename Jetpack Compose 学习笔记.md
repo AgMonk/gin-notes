@@ -136,9 +136,10 @@ fun HorizontalPagerIndex(states: List<PageState>, initialIndex: Int = 1) {
         // 横向分页器
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier
+             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize()
+                .fillMaxHeight(),
+            verticalAlignment = Alignment.Top
         ) { 
             // 根据当前页数，展示对应页的正文内容
             page -> states[page].content()
@@ -171,7 +172,7 @@ class MainActivity : ComponentActivity() {
 fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
 ```
 
-# Navigation的使用
+# Navigation
 
 ## 综述
 
@@ -517,3 +518,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
 ```
+
+# ViewModel和LiveData
+
+`todo`
+
+# 图片加载
+
+官方推荐使用`Coil`库来加载图片：[Coil文档](https://github.com/coil-kt/coil/blob/main/README-zh.md)
+
+## 导入依赖
+
+```groovy
+implementation("io.coil-kt.coil3:coil-compose:3.0.4")
+implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+```
+
+## 简单使用
+
+```kotlin
+AsyncImage(
+    model = "https://example.com/image.jpg",
+    contentDescription = null,
+)
+```
+
