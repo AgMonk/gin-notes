@@ -78,192 +78,181 @@ distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.9-bin.zip
 
 我的个人理解：执行一个可组合函数 = 在界面上渲染了一个组件
 
-# 使用Navigation制作一个带底部导航按钮的首页
+# APP首页制作
 
-## 导入依赖
+参考资料：
+
+- [分页器](https://developer.android.com/develop/ui/compose/layouts/pager?hl=zh-cn#horizontalpager)
+- [底部导航栏](https://developer.android.google.cn/reference/kotlin/androidx/compose/material3/package-summary#navigationbar)
+
+首先我们来制作一个非常常见的首页框架：底部有导航栏按钮，点击导航栏按钮切换上方的页面，上方页面也可以左右滑动翻页。新建一个文件命名为`HorizontalPagerIndex.kt`，代码如下：
+
+```kotlin
+
+/**
+ * 页面状态
+ * @param name 页面名称（底部导航按钮名称）
+ * @param icon 底部导航栏icon
+ * @param content 页面正文内容
+ * @constructor
+ */
+data class PageState(val name: String, val icon: @Composable () -> Unit, val content: @Composable () -> Unit)
+
+/**
+ * 带底部导航栏的横向翻页首页
+ * @param states 页面状态
+ * @param initialIndex 初始页位置
+ */
+@Composable
+fun HorizontalPagerIndex(states: List<PageState>, initialIndex: Int = 1) {
+    // 选中的index
+    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
+    // 分页器状态
+    val pagerState = rememberPagerState(pageCount = { states.size })
+    val coroutineScope = rememberCoroutineScope()
+    // 监控当前页的变化，切换页面时同步修改  selectedIndex 的值，无论是通过手势操作还是点击按钮均会触发
+    LaunchedEffect(pagerState) { snapshotFlow { pagerState.currentPage }.collect { page -> selectedIndex = page } }
+    // 界面
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        // 底部导航栏
+        bottomBar = {
+            NavigationBar {
+                states.forEachIndexed { index, state ->
+                    NavigationBarItem(
+                        // 按钮名称
+                        label = { Text(state.name) },
+                        // 按钮是否已选中，根据按钮序号与 selectedIndex 是否一致来决定
+                        selected = selectedIndex == index,
+                        // 点击按钮时的操作，通过 pagerState 切换页面
+                        onClick = { coroutineScope.launch { pagerState.scrollToPage(index) } },
+                        // 按钮的icon
+                        icon = state.icon,
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+        // 横向分页器
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+        ) { 
+            // 根据当前页数，展示对应页的正文内容
+            page -> states[page].content()
+        }
+    }
+}
+```
+
+使用，这里正文部分先简单放一个文本：
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            val states = listOf(
+                PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { Text("日常: ${ZonedDateTime.now().toLocalDateTime()}") }),
+                PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, { Text("社区: ${ZonedDateTime.now().toLocalDateTime()}") }),
+                PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { Text("设置: ${ZonedDateTime.now().toLocalDateTime()}") }),
+            )
+            HorizontalPagerIndex(states)
+        }
+    }
+}
+```
+
+# Navigation的使用
+
+## 综述
+
+参考资料：
+
+[导航](https://developer.android.google.cn/guide/navigation?hl=zh-cn#set-up)
+
+
+
+Navigation是一种替代原生`Activity`+`Fragment`的架构形式，官方推荐一个APP原则上只使用一个`Activity`
+
+
+
+本节来自对[官方教程](https://developer.android.google.cn/guide/navigation?hl=zh-cn#set-up)的总结和理解，也继承他其中的概念：
+
+- 宿主`NavHost`：屏幕上的一块区域，导航结果将在这块区域中展示
+- 导航控制器`NavController`：用来执行导航操作
+- 目的地`Destination`：导航操作需要呈现的页面（由可组合函数生成）
+- 路线：唯一标识目的地及其所需的任何数据；可以当做是目的地名称+参数
+
+如果你使用过`vue-router`，会更容易理解这些概念：
+
+- 宿主 = `<router-view/>`
+- 导航控制器 = `router.push(***)`中的`router`
+- 目的地 = 路由配置中的组件
+- 路线 = 路由配置中的地址，不过这里路线可以是一个自定义对象，而不只是字符串
+
+
+
+Navigation执行导航时会接管系统的`后退`操作（包括物理按键和手势），这也和`vue-router`很像，我们每次执行导航操作相当于新建了一个`Fragment`，后退时则回到上一个`Fragment`
+
+## 导入依赖和插件
+
+来自官方教程，我们使用compose架构所以只需要导入：
 
 ```groovy
+plugins {
+  id 'org.jetbrains.kotlin.plugin.serialization' version '2.0.21'
+}
+dependencies {
   implementation "androidx.navigation:navigation-compose:2.8.4"
+  implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3"
+}
 ```
 
 最新版本见 [官网](https://developer.android.google.cn/jetpack/androidx/releases/navigation?hl=zh-cn)
 
-## 代码及分析
+## 创建控制器和宿主
 
-先新建一个路由类：
-
-```kotlin
-/**
- * 路由
- * @param route 路由地址(navigation使用)
- * @param title 路由标题(导航栏按钮)
- * @param content 路由内部组件
- * @constructor
- */
-data class Route(
-    val route: String,
-    val title: String,
-    val content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit
-)
+原则上我们应当在较高的层级创建他们，比如Activity中，或者其`setContent`方法中的根组件里：
 
 ```
-
-打开`MainActivity`，在`MainActivity`类外新建三个可组合函数，他们将是三个导航按钮各自对应的路由页面，这里我们先简单地放一个全宽的文本组件：
-
-```kotlin
-@Composable
-fun DailyWork() {
-    Text("日常: ${ZonedDateTime.now().toLocalDateTime()}", modifier = Modifier.fillMaxWidth())
-}
-
-@Composable
-fun CommunityIndex() {
-   Text("社区: ${ZonedDateTime.now().toLocalDateTime()}", modifier = Modifier.fillMaxWidth())
-}
-
-@Composable
-fun Setting() {
-    Text("设置: ${ZonedDateTime.now().toLocalDateTime()}", modifier = Modifier.fillMaxWidth())
-}
-```
-
-新建一个可组合函数，作为首页的根组件：
-
-- 根组件中持有：`Navigation`的导航控制器、当前选中的路由序号（默认为1）、路由配置
-- 导航栏也路由页根据路由配置来生成
-- 使用`Scaffold`脚手架，将导航栏(NavigationBar)放入`bottomBar`，将路由页(NavHost)放入`content`
-
-```kotlin
-
-@Preview
-@Composable
-fun Index(initialIndex: Int = 1) {
-    // 导航控制器
-    val navController = rememberNavController()
-    // 选中的index
-    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
-
-    // 路由配置
-    val routes = listOf(
-        Route("daily", "日常") { DailyWork() },
-        Route("community", "社区") { CommunityIndex() },
-        Route("setting", "设置") { Setting() },
-    )
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            // 选中的index
-            NavigationBar {
-                routes.forEachIndexed { index, route ->
-                    NavigationBarItem(
-                        label = { Text(route.title) },
-                        selected = selectedIndex == index,
-                        onClick = {
-                            // 这个判断是必要的，否则重复点击同一个按钮时也会重新加载该路由
-                            if (selectedIndex != index) {
-                                navController.navigate(route.route)
-                                selectedIndex = index
-                            }
-                        },
-                        // 导航按钮图标先统一使用内置图标
-                        icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
-                    )
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                val navController = rememberNavController()
+                NavHost(navController = navController, startDestination = "初始路线") {
+                    TODO("路线和目的地列表")
                 }
             }
         }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = routes[initialIndex].route,
-            modifier = Modifier.padding(innerPadding),
-        ) {
-            routes.forEach { route -> composable(route=route.route,content = route.content)  }
-        }
     }
 }
 ```
 
-修改`MainActivity`中的`setContent`方法为，并清理预设的可组合函数：
+这里我们还没有添加路线和目的地，只是做了一个占位操作
+
+## 路线和目的地
+
+官方推荐我们使用可序列化的(`@Serializable`)对象或者数据类作为路线，这里只介绍一下数据类，它比起往上旧教程中querystring的传参方式要好用多了，而且很自然的，作为数据类可以配置字段为可null，或者提供默认值：
 
 ```kotlin
-setContent {
-    MyApplicationTheme {
-        Index()
-    }
+@Serializable
+data class Profile(val name: String)
+
+val navController = rememberNavController()
+NavHost(navController = navController, startDestination = Profile(name = "John Smith")) {
+    composable<Profile> { backStackEntry ->
+                         val profile: Profile = backStackEntry.toRoute()
+                         TODO("调用目的地可组合函数，并将路线中包含的参数传递给它")
+                        }
 }
 ```
 
-在手机上运行APP，可以看到路由切换已经实现，但是很明显可以发现一个问题：切换过程中文字重叠了，而不是我们常见的滑动切换的效果，所以我们给`NavHost`函数增加两个参数：
+如果你使用过实现了`Parcelable`接口的数据类向`Activity`或`Fragment`传参，会发现这两种做法非常类似
 
-```kotlin
-NavHost(
-    navController = navController,
-    startDestination = routes[initialIndex].route,
-    modifier = Modifier.padding(innerPadding),
-    // 增加的参数，分别表示页面进入和离开屏幕的动画，耗时500毫秒，其中 it 表示动画方向
-    enterTransition = { slideInHorizontally(tween(500)) { it  } },
-    exitTransition = { slideOutHorizontally(tween(500)) { -it  } }
-) 
-```
-
-运行APP可以看到已经有滑动动画了，但是页面的进出总是从同一个方向，而一般习惯应该是根据切换前后的相对位置决定进出的方向，比如1切到2时，1从左边出去2从右边进来，2切到1时2从右边出去1从左边进来
-
-那么我们在`Index`函数中增加一个方向变量`direction`，然后在点击导航按钮时，比较当前路由和目标路由的序号大小来修改该变量为`1`或者`-1`，最后让决定动画方向的`it`乘以该变量，完整的`Index`函数如下：
-
-```kotlin
-@Preview
-@Composable
-fun Index(initialIndex: Int = 1) {
-    // 导航控制器
-    val navController = rememberNavController()
-    // 选中的index
-    var selectedIndex by remember { mutableIntStateOf(initialIndex) }
-    // 动画方向
-    var direction by remember { mutableIntStateOf(1) }
-    // 路由配置
-    val routes = listOf(
-        Route("daily", "日常") { DailyWork() },
-        Route("community", "社区") { CommunityIndex() },
-        Route("setting", "设置") { Setting() },
-    )
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar {
-                routes.forEachIndexed { index, route ->
-                    NavigationBarItem(
-                        label = { Text(route.title) },
-                        selected = selectedIndex == index,
-                        onClick = {
-                            if (selectedIndex != index) {
-                                direction = if (selectedIndex > index) -1 else 1
-                                navController.navigate(route.route)
-                                selectedIndex = index
-                            }
-                        },
-                        icon = { Icon(Icons.Rounded.Home, contentDescription = null) },
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = routes[initialIndex].route,
-            modifier = Modifier.padding(innerPadding),
-            enterTransition = { slideInHorizontally(tween(500)) { it * direction } },
-            exitTransition = { slideOutHorizontally(tween(500)) { -it * direction } }
-        ) {
-            routes.forEach { route -> composable(route=route.route,content = route.content)  }
-        }
-    }
-}
-```
-
-这里有一个有意思的点，当我们从路由1切换到路由3的时候：
-
-- 如果我们是使用传统的`ViewPager2`+`Fragment`来实现它，这个切换操作会“路过”路由2，尽管是一瞬间但是也触发了路由2的Fragment的相关生命周期，但其实这是完全不必要的，还增加了卡顿
-- 而使用`Navigation`实现并不会“路过”路由2（在3个路由函数中打桩即可确认），路由3是直接渲染在右侧屏幕外之后移入屏幕的
-- 当路由页面较多时这种方式的性能优势明显，不过相应的这种方式不提供手势翻页的
