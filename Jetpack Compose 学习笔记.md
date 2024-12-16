@@ -10,7 +10,7 @@
 
 # 加速依赖导入（可选）
 
-项目创建好之后，以此选择`View`-`Tool Windows`-`Build`（或左下角Build按钮），打开构建工具窗口，先把同步操作停掉
+项目创建好之后，依次选择`View`-`Tool Windows`-`Build`（或左下角Build按钮），打开构建工具窗口，先把同步操作停掉
 
 配置阿里云依赖和插件仓库，打开项目的`settings.gradle`配置文件，将其内容修改为：
 
@@ -85,7 +85,7 @@ distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.9-bin.zip
 - [分页器](https://developer.android.com/develop/ui/compose/layouts/pager?hl=zh-cn#horizontalpager)
 - [底部导航栏](https://developer.android.google.cn/reference/kotlin/androidx/compose/material3/package-summary#navigationbar)
 
-首先我们来制作一个非常常见的首页框架：底部有导航栏按钮，点击导航栏按钮切换上方的页面，上方页面也可以左右滑动翻页。新建一个文件命名为`HorizontalPagerIndex.kt`，代码如下：
+首先制作一个非常常见的首页框架：底部有导航栏按钮，点击导航栏按钮切换上方的页面，上方页面也可以左右滑动翻页。新建一个文件命名为`HorizontalPagerIndex.kt`，代码如下：
 
 ```kotlin
 
@@ -108,7 +108,7 @@ fun HorizontalPagerIndex(states: List<PageState>, initialIndex: Int = 1) {
     // 选中的index
     var selectedIndex by remember { mutableIntStateOf(initialIndex) }
     // 分页器状态
-    val pagerState = rememberPagerState(pageCount = { states.size })
+    val pagerState = rememberPagerState(pageCount = { states.size }, initialPage = initialIndex)
     val coroutineScope = rememberCoroutineScope()
     // 监控当前页的变化，切换页面时同步修改  selectedIndex 的值，无论是通过手势操作还是点击按钮均会触发
     LaunchedEffect(pagerState) { snapshotFlow { pagerState.currentPage }.collect { page -> selectedIndex = page } }
@@ -147,7 +147,7 @@ fun HorizontalPagerIndex(states: List<PageState>, initialIndex: Int = 1) {
 }
 ```
 
-使用，这里正文部分先简单放一个文本：
+使用，假设我们在制作一个社区论坛APP，正文部分先简单放一个文本：
 
 ```kotlin
 class MainActivity : ComponentActivity() {
@@ -155,24 +155,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val states = listOf(
-                PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { Text("日常: ${ZonedDateTime.now().toLocalDateTime()}") }),
-                PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, { Text("社区: ${ZonedDateTime.now().toLocalDateTime()}") }),
-                PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { Text("设置: ${ZonedDateTime.now().toLocalDateTime()}") }),
-            )
-            HorizontalPagerIndex(states)
+            GF2GameCommunityTheme {
+                val states = listOf(
+                    PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { DateTimeText("日常") }),
+                    PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, { DateTimeText("社区") }),
+                    PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { DateTimeText("设置") }),
+                )
+                HorizontalPagerIndex(states)
+            }
         }
     }
 }
+
+@Composable
+fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
 ```
 
 # Navigation的使用
 
 ## 综述
 
-参考资料：
-
-[导航](https://developer.android.google.cn/guide/navigation?hl=zh-cn#set-up)
+参考资料：[导航](https://developer.android.google.cn/guide/navigation?hl=zh-cn#set-up)
 
 
 
@@ -182,7 +185,7 @@ Navigation是一种替代原生`Activity`+`Fragment`的架构形式，官方推�
 
 本节来自对[官方教程](https://developer.android.google.cn/guide/navigation?hl=zh-cn#set-up)的总结和理解，也继承他其中的概念：
 
-- 宿主`NavHost`：屏幕上的一块区域，导航结果将在这块区域中展示
+- 宿主`NavHost`：屏幕上的一块区域，导航目的地页面将在这块区域中展示
 - 导航控制器`NavController`：用来执行导航操作
 - 目的地`Destination`：导航操作需要呈现的页面（由可组合函数生成）
 - 路线：唯一标识目的地及其所需的任何数据；可以当做是目的地名称+参数
@@ -216,43 +219,301 @@ dependencies {
 
 ## 创建控制器和宿主
 
-原则上我们应当在较高的层级创建他们，比如Activity中，或者其`setContent`方法中的根组件里：
+原则上我们应当在较高的层级创建他们，比如`Activity`中，或者其`setContent`方法中的根组件里
 
-```
+
+
+继续刚才的社区论坛APP例子，现在我们的`MainActivity`长这样：
+
+```kotlin
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            GF2GameCommunityTheme {
                 val navController = rememberNavController()
-                NavHost(navController = navController, startDestination = "初始路线") {
-                    TODO("路线和目的地列表")
+                NavHost(
+                    navController = navController,
+                    startDestination = "起始路线",
+                ) {
+                   TODO("路线和目的地配置")
                 }
+
             }
         }
     }
 }
 ```
 
-这里我们还没有添加路线和目的地，只是做了一个占位操作
+
 
 ## 路线和目的地
 
-官方推荐我们使用可序列化的(`@Serializable`)对象或者数据类作为路线，这里只介绍一下数据类，它比起往上旧教程中querystring的传参方式要好用多了，而且很自然的，作为数据类可以配置字段为可null，或者提供默认值：
+参考资料：[导航图概览](https://developer.android.google.cn/guide/navigation/design?hl=zh-cn)
+
+- 官方推荐我们使用可序列化的(`@Serializable`)对象或者数据类作为路线，这里以数据类举例
+
+- 作为数据类很自然地，它可以配置字段是否可null，以及默认值，并可以使用copy方法进行克隆，比起网上旧教程中querystring的传参方式要好用多了
+- 如果你使用过实现了`Parcelable`接口的数据类向`Activity`或`Fragment`传参，会发现这两种做法非常类似
+
+继续刚才的社区论坛APP例子，现在我们的`MainActivity`长这样：
 
 ```kotlin
-@Serializable
-data class Profile(val name: String)
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            GF2GameCommunityTheme {
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = IndexRoute(),
+                ) {
+                    // 首页路线
+                    composable<IndexRoute> { IndexComposable(it.toRoute()) }
+                }
 
-val navController = rememberNavController()
-NavHost(navController = navController, startDestination = Profile(name = "John Smith")) {
-    composable<Profile> { backStackEntry ->
-                         val profile: Profile = backStackEntry.toRoute()
-                         TODO("调用目的地可组合函数，并将路线中包含的参数传递给它")
-                        }
+            }
+        }
+    }
+}
+
+@Composable
+fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
+
+/**
+ * 首页路线
+ * @param initialIndex 导航栏的初始位置
+ * @constructor
+ */
+@Serializable
+data class IndexRoute(val initialIndex: Int = 1)
+/**
+ * 首页组件
+ * @param route IndexRoute 路线
+ */
+@Composable
+fun IndexComposable(route: IndexRoute = IndexRoute()) {
+    // 路由配置
+    val states = listOf(
+        PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { DateTimeText("日常") }),
+        PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, { DateTimeText("社区") }),
+        PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { DateTimeText("设置") }),
+    )
+    HorizontalPagerIndex(states, route.initialIndex)
 }
 ```
 
-如果你使用过实现了`Parcelable`接口的数据类向`Activity`或`Fragment`传参，会发现这两种做法非常类似
+## 执行导航操作
 
+参考资料：[导航图概览](https://developer.android.google.cn/guide/navigation/design?hl=zh-cn#compose-minimal)
+
+- 执行导航操作需要调用`navController`的`navigate`方法
+
+- 官方不主张我们将`navController`传入到可组合函数中，而是向其传入一个`onNavigateTo*****`的回调方法，可组合函数只要在需要时调用传入的方法即可
+
+
+
+继续刚才的社区论坛APP例子，根据上述思想作以下修改：
+
+1. 新建一个`主题列表路线`（数据类）和一个`主题列表组件`(可组合方法)，参照上一节的方法在`NavHost`中注册它们，并顺带给它设置一个进入和退出的动画
+2. 为`IndexComposable`方法增加一个回调方法参数`onNavigateToTopicList`，将`社区`页正文修改为一个按钮，点击按钮时调用这个回调方法
+3. 修改`NavHost`中的首页路线配置，传入回调方法的实现，即调用`navController`的`navigate`方法导航到`主题列表路线`
+
+现在我们的`MainActivity`长这样：
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            GF2GameCommunityTheme {
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = IndexRoute(),
+                ) {
+                    // 首页路线
+                    composable<IndexRoute> {
+                        IndexComposable(it.toRoute(), onNavigateToTopicList = { route: TopicListRoute -> navController.navigate(route) })
+                    }
+                    // 主题列表路线
+                    composable<TopicListRoute>(
+                        // 从屏幕右侧进入，持续500毫秒
+                        enterTransition = { slideInHorizontally(tween(500)) { it } },
+                        // 从屏幕右侧退出，持续500毫秒
+                        exitTransition = { slideOutHorizontally(tween(500)) { it } }
+                    ) { TopicListComposable(it.toRoute()) }
+                }
+
+            }
+        }
+    }
+}
+
+@Composable
+fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
+
+/**
+ * 首页路线
+ * @param initialIndex 导航栏的初始位置
+ * @constructor
+ */
+@Serializable
+data class IndexRoute(val initialIndex: Int = 1)
+
+/**
+ * 首页组件
+ * @param route IndexRoute 路线
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun IndexComposable(route: IndexRoute = IndexRoute(), onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    // 路由配置
+    val states = listOf(
+        PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { DateTimeText("日常") }),
+        PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, {
+            Button(onClick = { onNavigateToTopicList(TopicListRoute(1)) }) { Text("打开主题列表") }
+        }),
+        PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { DateTimeText("设置") }),
+    )
+    HorizontalPagerIndex(states, route.initialIndex)
+}
+
+/**
+ * 主题列表路线
+ * @param categoryId 分类ID
+ * @constructor
+ */
+@Serializable
+data class TopicListRoute(val categoryId: Int)
+
+/**
+ * 主题路线组件
+ * @param route 路线
+ */
+@Composable
+fun TopicListComposable(route: TopicListRoute) {
+    Scaffold { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding)) {
+            DateTimeText("主题列表 - ${route.categoryId}")
+        }
+    }
+}
+```
+
+## 封装导航代码
+
+参考资料：[封装代码](https://developer.android.google.cn/guide/navigation/design/encapsulate?hl=zh-cn)
+
+显然我们已经发现`MainActivity`变得有点臃肿了，所以官方建议我们把`路线`和`组件`，甚至`NavHost`中的配置也使用扩展方法移到单独的文件中去，所以现在：
+
+
+
+`Index.kt`
+
+```kotlin
+/**
+ * 扩展方法
+ * @receiver [NavGraphBuilder]
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+fun NavGraphBuilder.index(onNavigateToTopicList: (route: TopicListRoute) -> Unit) = composable<IndexRoute> { IndexComposable(
+    route = it.toRoute(),
+    onNavigateToTopicList = onNavigateToTopicList
+) }
+
+/**
+ * 首页路线
+ * @param initialIndex 导航栏的初始位置
+ * @constructor
+ */
+@Serializable
+data class IndexRoute(val initialIndex: Int = 1)
+
+/**
+ * 首页组件
+ * @param route IndexRoute 路线
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun IndexComposable(route: IndexRoute = IndexRoute(), onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    // 路由配置
+    val states = listOf(
+        PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { DateTimeText("日常") }),
+        PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, {
+            Button(onClick = { onNavigateToTopicList(TopicListRoute(1)) }) { Text("打开主题列表") }
+        }),
+        PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { DateTimeText("设置") }),
+    )
+    HorizontalPagerIndex(states, route.initialIndex)
+}
+```
+
+`TopicList.kt`
+
+```kotlin
+/**
+ * 扩展方法
+ * @receiver [NavGraphBuilder]
+ */
+fun NavGraphBuilder.topicList() = composable<TopicListRoute>(
+    // 从屏幕右侧进入，持续500毫秒
+    enterTransition = { slideInHorizontally(tween(500)) { it } },
+    // 从屏幕右侧退出，持续500毫秒
+    exitTransition = { slideOutHorizontally(tween(500)) { it } })
+{ TopicListComposable(route = it.toRoute()) }
+
+/**
+ * 主题列表路线
+ * @param categoryId 分类ID
+ * @constructor
+ */
+@Serializable
+data class TopicListRoute(val categoryId: Int)
+
+/**
+ * 主题路线组件
+ * @param route 路线
+ */
+@Composable
+fun TopicListComposable(route: TopicListRoute) {
+    Scaffold { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding)) {
+            DateTimeText("主题列表 - ${route.categoryId}")
+        }
+    }
+}
+```
+
+`MainActivity.kt`
+
+```kotlin
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            GF2GameCommunityTheme {
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = IndexRoute(),
+                ) {
+                    // 首页路线
+                    index(onNavigateToTopicList = { navController.navigate(it) })
+                    // 主题列表路线
+                    topicList()
+                }
+
+            }
+        }
+    }
+}
+
+@Composable
+fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
+```
