@@ -8,6 +8,10 @@
 
 `Andriod Studio`中依次选择`File`-`New`-`New Project`，模板选择`Empty Activity`，下一步，界面会提示将使用`Jetpack Compose`创建一个空的`activity`，这里构建配置语言我们选`Grovvy`，填写其他信息，`finish`
 
+
+
+注：本文使用的`compose-bom`的版本为`2024.12.01`，创建好项目后可在`libs.versions.toml`文件中修改
+
 # 加速依赖导入（可选）
 
 项目创建好之后，依次选择`View`-`Tool Windows`-`Build`（或左下角Build按钮），打开构建工具窗口，先把同步操作停掉
@@ -521,20 +525,112 @@ fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateT
 
 # ViewModel和LiveData
 
-`todo`
+之前我们用到了`DateTimeText`这个自定义可组合函数，我们会发现每次打开一个用到它的页面，上面的时间都会更新，也就是说每次我们“看到”它的时候这个函数都被重新执行了一遍，而不是像`ViewPager2`那样会缓存已经加载过的页面，那么问题来了，如果我要显示的东西是通过**网络请求**拿到的，那岂不是每次都要重新请求？
+
+
+
+所以这就该用到`ViewModel`和`LiveData`了，参考资料：[ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel?hl=zh_cn)
+
+## 简介
+
+`ViewModel`和`LiveData`通常会搭配使用来封装：业务逻辑、业务数据、状态数据等；而组件只负责通过`绑定`的形式显示数据，绑定的数据有变化时界面会自动更新（又是和`vue`相似的机制）；由于`ViewModel`生命周期长于界面组件，通过网络请求拿到的数据可以缓存在其中。
+
+标准用法为：
+
+1. 通过自定义类继承`ViewModel`，在其中编写业务逻辑
+2. 在`ViewModel`中定义`LiveData`字段，用来保存业务数据和状态数据
+3. 在需要显示数据的组件外部实例化自定义的`ViewModel`并将其传入
+4. 在需要显示数据的组件内部将需要显示数据的`LiveData`中的数据绑定到需要的位置
+
+## 代码示例
+
+继续刚才的社区论坛APP例子
+
+新建一个类`CommunityIndexViewModel`继承`ViewModel`
+
+- `api`字段是我使用`retrofit`封装的一个请求接口
+- `obtainBanners`方法用于请求和更新数据
+
+```kotlin
+class CommunityIndexViewModel : ViewModel() {
+    private val api = App.INSTANCE.api.indexApi
+    private var loadingBanners = false
+
+    val banners = MutableLiveData<List<Banner>>()
+
+    fun obtainBanners(force: Boolean = false) {
+        if (loadingBanners) return
+        // 如果强制更新 或 数据为空，执行
+        if (force || banners.value.isNullOrEmpty()) {
+            loadingBanners = true
+            // 执行请求
+            api.getBanner().enqueue(object : Callback<Res<Banner.Body>?> {
+                override fun onResponse(call: Call<Res<Banner.Body>?>, response: Response<Res<Banner.Body>?>) {
+                    banners.value = response.body()?.data?.bannerList
+                    loadingBanners = false
+                }
+
+                override fun onFailure(call: Call<Res<Banner.Body>?>, throwable: Throwable) {
+                    loadingBanners = false
+                    throwable.printStackTrace()
+                    TODO("Not yet implemented")
+                }
+            })
+        }
+    }
+}
+```
+
+新建可组合函数`CommunityIndex`，接收`CommunityIndexViewModel`作为参数，在其中执行请求并绑定`banners`列表的长度到一个文本框中；然后将`IndexComposable`函数的`社区`页正文修改为`CommunityIndex`
+
+```kotlin
+/**
+ * 社区首页
+ * @param viewModel [CommunityIndexViewModel]
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    viewModel.obtainBanners()
+    val bannerState = viewModel.banners.observeAsState()
+    Text("banner: ${bannerState.value?.size?:0}")
+}
+
+/**
+ * 首页组件
+ * @param route IndexRoute 路线
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun IndexComposable(route: IndexRoute = IndexRoute(), onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    // 社区首页ViewModel
+    val communityIndexViewModel = viewModel<CommunityIndexViewModel>()
+
+    // 路由配置
+    val states = listOf(
+        PageState("日常", { Icon(Icons.Rounded.DateRange, contentDescription = null) }, { DateTimeText("日常") }),
+        PageState("社区", { Icon(Icons.Rounded.Home, contentDescription = null) }, { CommunityIndex(communityIndexViewModel, onNavigateToTopicList) }),
+        PageState("设置", { Icon(Icons.Rounded.Settings, contentDescription = null) }, { DateTimeText("设置") }),
+    )
+    HorizontalPagerIndex(states, route.initialIndex)
+}
+
+```
+
+运行APP即可看到文本框中的数字先是0，请求完成后则变为对应数字
 
 # 图片加载
 
 官方推荐使用`Coil`库来加载图片：[Coil文档](https://github.com/coil-kt/coil/blob/main/README-zh.md)
 
-## 导入依赖
+## 导入依赖和官方示例
 
 ```groovy
 implementation("io.coil-kt.coil3:coil-compose:3.0.4")
 implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
 ```
 
-## 简单使用
+简单使用
 
 ```kotlin
 AsyncImage(
@@ -543,3 +639,170 @@ AsyncImage(
 )
 ```
 
+## 代码示例
+
+继续刚才的社区论坛APP例子，既然我们请求到了一个banner列表，自然需要显示对应的图片，简单套用官方示例结合之前使用过的`HorizontalPager`即可：
+
+```kotlin
+/**
+ * 社区首页
+ * @param viewModel [CommunityIndexViewModel]
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    viewModel.obtainBanners()
+    val bannerState = viewModel.banners.observeAsState()
+    Banner(bannerState.value)
+}
+
+
+@Composable
+fun Banner(banners: List<Banner>?) {
+    val data = banners?.takeIf { it.isNotEmpty() } ?: return
+    val pagerState = rememberPagerState(pageCount = { data.size })
+    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
+        AsyncImage(
+            model = banners[page].imgAddr,
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+```
+
+不过看到这个效果，自然我们会想到这种图片常规来说应该是轮播图才对：图片会自动翻页，有小点或色块显示当前为第几页，点击还能跳转到其他页面
+
+## 轮播图
+
+参考资料：
+
+- [官方组件](https://juejin.cn/post/7396252674239610916)
+- [自己组合](https://blog.csdn.net/u011897062/article/details/131032644)
+
+说明：
+
+- 官方组件，需要比较新的`material3`版本，目前`compose-bom`的版本为`2024.12.01`，已支持该功能， 因为是近期添加的组件会有`实验性`的注解。
+
+- 官方的两种组件我试用了一下均不是我想要的功能：没有页数指示器，也没有自动翻页；和`HorizontalPager`比没有显著区别
+
+所以我们还是来自己做一个：
+
+1. 把它做成通用组件方便复用，传入的数据对象使用泛型，对图片的渲染方法也通过外部传入
+2. 可以修改页数指示器的样式，包括：
+   - 形状（默认圆形）
+   - 大小及相互间距离（默认8dp）
+   - 在两种状态下的颜色（默认蓝色和灰色）
+   - 位于轮播图的内部还是外部，及距离底边的距离
+3. 可以选择是否自动滚动，且可以设置滚动间隔
+
+
+
+定义：
+
+```kotlin
+/**
+ * 横向轮播图，带页数指示器及自动滚动
+ * @param T 数据类型
+ * @param list 数据列表
+ * @param selectedColor 页数指示器：选中时的颜色
+ * @param unselectedColor 页数指示器：未选中时的颜色
+ * @param spotSize 页数指示器：大小
+ * @param spotSpacing 页数指示器：间隔
+ * @param spotsInside 页数指示器：在轮播图内还是外
+ * @param spotsRange 页数指示器：距离轮播图底边的距离
+ * @param spotShape 页数指示器：形状
+ * @param autoScrollDuration 自动滚动的间隔，设置为0则不滚动
+ * @param item 渲染单个轮播图的方法
+ */
+@Composable
+fun <T> HorizontalCarousel(
+    list: List<T>?,
+    selectedColor: Color = Color.Blue,
+    unselectedColor: Color = Color.Gray,
+    spotSize: Dp = 10.dp,
+    spotSpacing: Dp = 8.dp,
+    spotsInside: Boolean = true,
+    spotsRange: Dp = 8.dp,
+    spotShape: Shape = CircleShape,
+    autoScrollDuration: Long = 5000L,
+    item: @Composable (T) -> Unit
+) {
+    val data = list?.takeIf { it.isNotEmpty() } ?: return
+    val pagerState = rememberPagerState(pageCount = { data.size })
+
+    // 轮播图
+    @Composable
+    fun Pager() = HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth(), pageSpacing = 8.dp) { page -> item(data[page]) }
+
+    // 页数指示器
+    @Composable
+    fun Spots() {
+        repeat(data.size) {
+            Box(Modifier
+                .clip(spotShape)
+                .background(if (it == pagerState.currentPage) selectedColor else unselectedColor)
+                .width(spotSize)
+                .height(spotSize))
+            Spacer(Modifier.width(spotSpacing))
+        }
+    }
+
+    // 自动滚动
+    if (autoScrollDuration > 0) {
+        val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
+        if (isDragged.not()) {
+            with(pagerState) {
+                var currentPageKey by remember { mutableIntStateOf(0) }
+                LaunchedEffect(key1 = currentPageKey) {
+                    launch {
+                        delay(timeMillis = autoScrollDuration)
+                        val nextPage = (currentPage + 1).mod(pageCount)
+                        animateScrollToPage(page = nextPage)
+                        currentPageKey = nextPage
+                    }
+                }
+            }
+        }
+    }
+
+    // 根据指示器是否在图片内决定布局
+    if (spotsInside) {
+        Box {
+            Pager()
+            Row(Modifier
+                .align(Alignment.BottomCenter)
+                .padding(spotsRange)) { Spots() }
+        }
+    } else {
+        Column {
+            Pager()
+            Spacer(Modifier.height(spotsRange))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { Spots() }
+        }
+    }
+}
+```
+
+使用：
+
+```kotlin
+/**
+ * 社区首页
+ * @param viewModel [CommunityIndexViewModel]
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    viewModel.obtainBanners()
+    val bannerState = viewModel.banners.observeAsState()
+
+    HorizontalCarousel(bannerState.value) {
+        AsyncImage(model = it.imgAddr, contentDescription = null, modifier = Modifier.fillMaxWidth())
+    }
+}
+```
+
+# 顶部标题栏
+
+参考资料：[应用栏](https://developer.android.com/develop/ui/compose/components/app-bars?hl=zh-cn)
