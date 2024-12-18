@@ -531,6 +531,10 @@ fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateT
 
 所以这就该用到`ViewModel`和`LiveData`了，参考资料：[ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel?hl=zh_cn)
 
+
+
+另外扩展阅读：[可组合项的生命周期](https://developer.android.com/develop/ui/compose/lifecycle?hl=zh-cn)
+
 ## 简介
 
 `ViewModel`和`LiveData`通常会搭配使用来封装：业务逻辑、业务数据、状态数据等；而组件只负责通过`绑定`的形式显示数据，绑定的数据有变化时界面会自动更新（又是和`vue`相似的机制）；由于`ViewModel`生命周期长于界面组件，通过网络请求拿到的数据可以缓存在其中。
@@ -803,6 +807,159 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
 }
 ```
 
-# 顶部标题栏
+# 顶部应用栏
 
 参考资料：[应用栏](https://developer.android.com/develop/ui/compose/components/app-bars?hl=zh-cn)
+
+## 首页
+
+由于是首页的应用栏，暂不涉及复用问题，我们直接在原本的`HorizontalPagerIndex`函数中修改，在`Scaffold`函数中增加参数`topBar`，直接抄官方示例的居中对齐样式，把标题改成APP名字，略微改动一下按钮icon：
+
+```kotlin
+topBar = {
+    CenterAlignedTopAppBar(
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.primary,
+        ),
+        title = { Text(text = stringResource(R.string.app_name)) },
+        actions = {
+            IconButton(onClick = { println("点击菜单按钮") }) {
+                Icon(imageVector = Icons.Filled.Menu, contentDescription = "菜单按钮")
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = { println("用户按钮") }) {
+                Icon(imageVector = Icons.Filled.Person, contentDescription = "用户按钮")
+            }
+        },
+    )
+},
+```
+
+## 主题列表页
+
+主题列表页的应用栏我们选择常规模式，并需要在标题栏显示当前所属主题分类名，导航按钮则选择左箭头，并实现后退功能
+
+```kotlin
+/**
+ * 扩展方法
+ * @receiver [NavGraphBuilder]
+ */
+fun NavGraphBuilder.topicList(onPopBackStack: () -> Unit) = composable<TopicListRoute>(
+    // 从屏幕右侧进入，持续500毫秒
+    enterTransition = { slideInHorizontally(tween(500)) { it } },
+    // 从屏幕右侧退出，持续500毫秒
+    exitTransition = { slideOutHorizontally(tween(500)) { it } }) {
+    TopicListComposable(route = it.toRoute(), onPopBackStack = onPopBackStack)
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopicListComposable(route: TopicListRoute, onPopBackStack: () -> Unit) {
+    // 社区首页ViewModel
+    val communityIndexViewModel = viewModel<CommunityIndexViewModel>()
+    val categoryState = communityIndexViewModel.categories.observeAsState()
+
+    communityIndexViewModel.obtainCategoryList()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = { onPopBackStack() }) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "后退按钮")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.primary,
+                ),
+                title = {
+                    Text(categoryState.value?.firstOrNull { it.id == route.categoryId }?.name ?: "<主题分类>")
+                }
+            )
+        },
+    ) { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding)) {
+            DateTimeText("主题列表 - ${route.categoryId}")
+        }
+    }
+}
+```
+
+依然是在`NavHost`中实现后退方法并传入：
+
+```kotlin
+NavHost(
+    navController = navController,
+    startDestination = IndexRoute(),
+) {
+    // 首页路线
+    index(onNavigateToTopicList = { navController.navigate(it) })
+    // 主题列表路线
+    topicList(onPopBackStack = { navController.popBackStack() })
+}
+```
+
+# 网格布局
+
+参考资料：[延迟网格](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#lazy-grids)
+
+这里即将用到的延迟网格和官方教程示例里用过的延迟行列，显然和`RecyclerView`有着非常相似的行为
+
+现在我们用它来在首页显示主题分类入口：
+
+1. 新建一个可组合函数`CategoryGrid`传入从参数分类数据，如果分类数据为空则显示一个占位提示，否则使用延迟网格渲染分类入口，入口由一张图片和名称组成
+2. 修改可组合函数`CommunityIndex`和`CommunityIndexViewModel`增加对分类数据的请求，并将`CategoryGrid`放在轮播图下方，中间间隔`20dp`
+3. 顺带把之前写好的`onNavigateToTopicList`回调功能也一并实现了
+
+示例：
+
+```kotlin
+/**
+ * 社区首页
+ * @param viewModel [CommunityIndexViewModel]
+ * @param onNavigateToTopicList 导航到主题列表
+ */
+@Composable
+fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    viewModel.obtainBanners()
+    viewModel.obtainCategoryList()
+    val bannerState = viewModel.banners.observeAsState()
+    val categoryState = viewModel.categories.observeAsState()
+
+    Column {
+        HorizontalCarousel(bannerState.value) {
+            AsyncImage(model = it.imgAddr, contentDescription = null, modifier = Modifier.fillMaxWidth())
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        CategoryGrid(categoryState.value, onNavigateToTopicList = onNavigateToTopicList)
+    }
+}
+
+@Composable
+fun CategoryGrid(categories: List<TopicCategory>?, onNavigateToTopicList: (route: TopicListRoute) -> Unit) {
+    if (categories.isNullOrEmpty()) {
+        Text(text = "暂无数据:主题分类", modifier = Modifier.fillMaxSize(), textAlign = TextAlign.Center)
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 128.dp),
+    ) {
+        items(categories.size) {
+            val item = categories[it]
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
+                onNavigateToTopicList(TopicListRoute(item.id))
+            }) {
+                AsyncImage(model = item.imgC, contentDescription = null, modifier = Modifier.size(80.dp))
+                Text(item.name)
+            }
+        }
+    }
+}
+
+```
