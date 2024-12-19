@@ -963,3 +963,71 @@ fun CategoryGrid(categories: List<TopicCategory>?, onNavigateToTopicList: (route
 }
 
 ```
+
+# 延迟列表
+
+参考资料：[延迟列表](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#lazy)
+
+官方入门示例中已经试用过了，这次我们把它加上`ViewModel`一起用来实现主题列表内容的展示，并配上`自动加载更多`功能：
+
+1. 修改`TopicListRoute`路线数据类的定义，使之包含请求所需参数；对应修改`CategoryGrid`可组合函数中对它的调用参数
+
+```kotlin
+/**
+ * 主题列表路线
+ * @param queryType 查询类型
+ * @param userId 用户ID ， 查询用户发帖时使用
+ * @param themeId 话题ID
+ * @param categoryId 类型ID
+ * @param sortType 排序 todo
+ * @constructor
+ */
+@Serializable
+data class TopicListRoute(
+    val queryType: QueryType,
+    val userId: Int? = null,
+    val themeId: Int? = null,
+    val categoryId: Int? = null,
+    val sortType: Int = 1,
+)
+```
+
+2. 新建`TopicListViewModel`类，参照`CommunityIndexViewModel`模式编写业务内容（代码省略）
+3. 新建`LazyTopicList`可组合函数，传入`TopicListRoute`路线数据类对象和`TopicListViewModel`类对象；使用`LazyColumn`显示主题列表内容，并加上`自动加载更多`功能（`TopicItem`可组合函数代码省略
+
+```kotlin
+@Composable
+fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier: Modifier = Modifier) {
+    val state = viewModel.topics.observeAsState()
+    if (state.value.isNullOrEmpty()) {
+        viewModel.obtainTopicList(route)
+        Text(text = "暂无数据:主题列表", modifier = modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        return
+    }
+
+    // 列表状态
+    val listState = rememberLazyListState()
+    // 是否需要加载更多数据
+    val loadMore = remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val lastIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            // 当”当前展示的项目序号+1“ 大于等于 "列表项总数-2" 时加载更多
+            (lastIndex + 1) >= layoutInfo.totalItemsCount - 2
+        }
+    }
+    // 监控loadMore变化，当其为 true 时加载更多数据
+    LaunchedEffect(loadMore) { snapshotFlow { loadMore.value }.distinctUntilChanged().collect { if (it) viewModel.obtainTopicList(route) } }
+
+    LazyColumn(state = listState,
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        contentPadding = PaddingValues(4.dp)) {
+        itemsIndexed(state.value!!, key = { _, e -> e.topicId }) { _, item -> TopicItem(item) }
+    }
+}
+```
+
+这里使用了key参数来优化性能，另外官方表示[延迟布局在调试模式下性能较差](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#measuring-performance)，属于正常情况。
+
+4. 使用`LazyTopicList`替换`TopicListComposable`中原先的占位文本
