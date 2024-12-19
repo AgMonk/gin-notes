@@ -993,7 +993,7 @@ data class TopicListRoute(
 ```
 
 2. 新建`TopicListViewModel`类，参照`CommunityIndexViewModel`模式编写业务内容（代码省略）
-3. 新建`LazyTopicList`可组合函数，传入`TopicListRoute`路线数据类对象和`TopicListViewModel`类对象；使用`LazyColumn`显示主题列表内容，并加上`自动加载更多`功能（`TopicItem`可组合函数代码省略
+3. 新建`LazyTopicList`可组合函数，传入`TopicListRoute`路线数据类对象和`TopicListViewModel`类对象；使用`LazyColumn`显示主题列表内容，并加上`自动加载更多`功能（`TopicItem`可组合函数代码省略）
 
 ```kotlin
 @Composable
