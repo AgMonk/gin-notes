@@ -1035,7 +1035,7 @@ fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier
 - [Material Design 3](https://developer.android.google.cn/develop/ui/compose/designsystems/material3?hl=hr)
 - [卡片](https://developer.android.com/develop/ui/compose/components/card?hl=zh-cn)
 
-`Jetpack Compose`的主题和配色配置集中在`项目/ui/theme`下
+`Jetpack Compose`的主题和配色配置集中在`项目目录/ui/theme`下
 
 - `Color.kt`： 定义颜色
 - `Theme.kt`：定义主题，从`Color.kt`中引用颜色
@@ -1076,3 +1076,184 @@ Card(modifier = Modifier
 ```
 
 使用`MaterialTheme.colorScheme.***`即可从`当前应用的主题`中选择颜色
+
+# 抽屉式导航栏
+
+参考资料：[抽屉式导航栏](https://developer.android.google.cn/develop/ui/compose/components/drawer?hl=hr#control)
+
+现在我们来给首页增加一个侧边导航栏：
+
+1. 点击左上角用户图标时展开，其中显示当前登录用户的头像和昵称，如果当前未登录则显示占位头像和“未登录”字样
+2. 由于之前我们的顶部应用栏直接写在`HorizontalPagerIndex`里了，为了操作方便抽屉也放在这里，但是抽屉内容从外部传入
+3. `ModalNavigationDrawer`组件需要套在原界面的外层，其`drawerContent`属性为抽屉内容，这里我们把`ModalDrawerSheet`设置为固定宽度，否则抽屉内容的宽度可能影响抽屉的实际宽度
+
+修改`HorizontalPagerIndex`的部分代码：
+
+```kotlin
+@Composable
+fun HorizontalPagerIndex(states: List<PageState>, drawerSheetContent: @Composable () -> Unit = {}, initialIndex: Int = 1) {
+    /*省略代码*/
+
+    // 界面 todo 抽屉状态初始打开
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    ModalNavigationDrawer(drawerContent = { ModalDrawerSheet(modifier = Modifier.requiredWidth(240.dp)) { drawerSheetContent() } }, drawerState = drawerState) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                CenterAlignedTopAppBar(
+                     /*省略代码*/
+                    // 打开或关闭抽屉
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            scope.launch { drawerState.apply { if (isClosed) open() else close() } }
+                        }) {
+                            Icon(imageVector = Icons.Filled.Person, contentDescription = "用户按钮")
+                        }
+                    },
+                )
+            },
+            /*省略代码*/
+            }
+        ) { innerPadding ->
+           /*省略代码*/
+        }
+    }
+}
+```
+
+4. 新建`UserViewModel`，在其中实现“查询当前登录用户信息”的逻辑（代码省略）
+5. 在`Index.kt`中新建可组合函数`DrawerContent`（抽屉内容）将其传入`HorizontalPagerIndex`
+6. 修改`IndexComposable`，实例化`UserViewModel`并将其传入`DrawerContent`；`DrawerContent`中执行查询请求，并绑定状态数据
+
+```kotlin
+@Composable
+fun DrawerContent(viewModel: UserViewModel) {
+    viewModel.obtainCurrentUserInfo()
+    val userInfoState = viewModel.currentUser.observeAsState()
+    Column {
+        // 当前用户头像和昵称
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (userInfoState.value != null) {
+                AsyncImage(model = userInfoState.value!!.avatar, contentDescription = null, modifier = Modifier
+                    .clip(CircleShape)
+                    .size(120.dp))
+            } else {
+                Icon(imageVector = Icons.Filled.Person, contentDescription = "占位头像", modifier = Modifier.size(120.dp))
+            }
+            Text(userInfoState.value?.nickName ?: "未登录", modifier = Modifier.padding(16.dp))
+        }
+    }
+}
+```
+
+# 对话框和输入框
+
+参考资料：
+
+- [输入框](https://developer.android.google.cn/develop/ui/compose/text/user-input?hl=zh-cn)
+
+- [对话框](https://developer.android.google.cn/develop/ui/compose/components/dialog?hl=zh-cn)
+
+接下来进一步修改`DrawerContent`抽屉内容，实现登录功能：
+
+```kotlin
+/**
+ * 抽屉内容
+ */
+@Composable
+fun DrawerContent(viewModel: UserViewModel) {
+    viewModel.obtainCurrentUserInfo()
+    val userInfoState = viewModel.currentUser.observeAsState()
+    // 对话框的打开状态
+    val openLoginDialog = remember { mutableStateOf(false) }
+
+    Column {
+        // 当前用户头像和昵称
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (userInfoState.value != null) {
+                // 有用户信息 显示头像和昵称
+                AsyncImage(model = userInfoState.value!!.avatar, contentDescription = null, modifier = Modifier
+                    .clip(CircleShape)
+                    .size(120.dp))
+                Text(userInfoState.value!!.nickName, modifier = Modifier.padding(16.dp))
+            } else {
+                // 无用户信息 显示占位头像 点击打开对话框登录
+                Icon(imageVector = Icons.Filled.Person, contentDescription = "占位头像", modifier = Modifier
+                    .size(120.dp)
+                    .clickable { openLoginDialog.value = true })
+                Text("点击登录", modifier = Modifier
+                    .padding(16.dp)
+                    .clickable { openLoginDialog.value = true })
+            }
+        }
+        // 横向分割线
+        HorizontalDivider(Modifier.height(2.dp))
+    }
+
+    // 当 openLoginDialog 为 true时打开登录对话框
+    when {
+        openLoginDialog.value -> LoginDialog(onSuccess = { _, _ -> openLoginDialog.value = false }, onCloseDialog = { openLoginDialog.value = false })
+    }
+}
+
+@Composable
+fun LoginDialog(onSuccess: (uid: Int?, token: String?) -> Unit = { _, _ -> }, onCloseDialog: () -> Unit) {
+    Dialog(onDismissRequest = { }) {
+        Card(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .height(240.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // 登录按钮可点击
+                var clickable by remember { mutableStateOf(true) }
+                // 用户名和密码
+                var username by remember { mutableStateOf("") }
+                var password by remember { mutableStateOf("") }
+                // 关闭按钮
+                Icon(imageVector = Icons.Filled.Close, contentDescription = "关闭弹窗", modifier = Modifier.clickable { onCloseDialog() })
+                // 用户名输入框
+                TextField(value = username, onValueChange = { username = it }, label = { Text("手机 或 邮箱") },
+                    // 软键盘右下角按钮为“下一个”
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next))
+                // 密码输入框
+                TextField(value = password, onValueChange = { password = it },
+                    // 密码替换为 * 号
+                    visualTransformation = PasswordVisualTransformation(),
+                    // 软键盘为密码键盘
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Password), label = { Text("密码") })
+
+                Spacer(Modifier.height(16.dp))
+                // 登录按钮
+                Button(enabled = clickable, onClick = {
+                    clickable = false
+                    // 发送登录请求
+                    App.INSTANCE.api.accountApi.login(LoginForm(username, password)).enqueue(object : Callback<Res<LoginBody>?> {
+                        override fun onResponse(p0: Call<Res<LoginBody>?>, response: Response<Res<LoginBody>?>) {
+                            clickable = false
+                            response.body()?.data?.account?.apply {
+                                App.toast("登录成功")
+                                onSuccess(uid, token)
+                            }
+                        }
+
+                        override fun onFailure(p0: Call<Res<LoginBody>?>, throwable: Throwable) {
+                            clickable = false
+                            App.onFailed(throwable)
+                        }
+                    })
+                }) { Text("登录") }
+
+            }
+        }
+    }
+}
+```
