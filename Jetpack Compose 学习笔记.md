@@ -817,11 +817,7 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
 
 ```kotlin
 topBar = {
-    CenterAlignedTopAppBar(
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            titleContentColor = MaterialTheme.colorScheme.primary,
-        ),
+    CenterAlignedTopAppBar(        
         title = { Text(text = stringResource(R.string.app_name)) },
         actions = {
             IconButton(onClick = { println("点击菜单按钮") }) {
@@ -1031,3 +1027,52 @@ fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier
 这里使用了key参数来优化性能，另外官方表示[延迟布局在调试模式下性能较差](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#measuring-performance)，属于正常情况。
 
 4. 使用`LazyTopicList`替换`TopicListComposable`中原先的占位文本
+
+# 主题和配色
+
+参考资料：
+
+- [Material Design 3](https://developer.android.google.cn/develop/ui/compose/designsystems/material3?hl=hr)
+- [卡片](https://developer.android.com/develop/ui/compose/components/card?hl=zh-cn)
+
+`Jetpack Compose`的主题和配色配置集中在`项目/ui/theme`下
+
+- `Color.kt`： 定义颜色
+- `Theme.kt`：定义主题，从`Color.kt`中引用颜色
+- `Type.kt`：排版字体相关
+
+`Theme.kt`文件末尾有一个可组合函数叫`项目名Theme`，之前我们在`MainActivity`的`setContent`中首先调用过了它，这一步相当于`应用主题`的意思。函数逻辑很简单：根据`系统是否处于暗黑主题`、`是否开启动态颜色`、`安卓系统的版本`决定配色。
+
+
+
+虽然结构比原来简单但是想手搓一套配色还是很麻烦的，所以这里推荐一款工具，可以根据你给出的一个颜色生成一套比较和谐的配色：[material-theme-builder](https://material-foundation.github.io/material-theme-builder/)
+
+1. 打开界面后点击左侧`Source Color`前面的圆形
+2. 这里可以直接输入一个Hex格式的颜色代码（可以去网页上开F12爬），或者自己调整下面三个滑块选择；点`Apply`
+3. 工具会自动生成一套配色，并且整个界面会直接应用它，右侧会显示各种界面UI的预览
+4. 满意后点击右下角的`Pick your fonts`，这一步保持默认继续点右下角`Export theme`，再点`Export`导出主题
+5. 导出文件格式我们选`Jetpack Compose(Theme.kt)`，开始下载
+6. 下载完成后解压会发现目录结构和已有结构完全一致，直接替换原有3个文件即可
+7. 替换完成后还需要一些修改：
+   - 3个文件开头的包路径需要修改为正确路径
+   - `Theme.kt`文件末尾的有一个可组合函数`AppTheme`，把它的名字改回`项目名Theme`；另外它的参数`dynamicColor`（动态颜色）的默认值需要改为`false`，**否则在安卓12+版本上配色将会使用根据你的壁纸生成的动态颜色而不是我们刚才选择的配色**
+   - `Type.kt`文件中的配置如果不想深究可以把原内容覆盖回来
+
+
+
+应用配色之后我们把之前的延迟列表略微修改一下，把`index`传入`TopicItem`中
+
+```kotlin
+itemsIndexed(state.value!!, key = { _, e -> e.topicId }) { index, item -> TopicItem(item, index) }
+```
+
+然后在`TopicItem`中把用到的`卡片组件`的背景色修改为`斑马色`(根据`index` 的奇偶性从两种颜色里二选一)
+
+```kotlin
+Card(modifier = Modifier
+    .fillMaxWidth(), colors = CardDefaults.cardColors().copy(
+    containerColor = if (index % 2 == 1) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+)
+```
+
+使用`MaterialTheme.colorScheme.***`即可从`当前应用的主题`中选择颜色
