@@ -86,7 +86,7 @@ distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.9-bin.zip
 
 参考资料：
 
-- [分页器](https://developer.android.com/develop/ui/compose/layouts/pager?hl=zh-cn#horizontalpager)
+- [分页器](https://developer.android.google.cn/develop/ui/compose/layouts/pager?hl=zh-cn#horizontalpager)
 - [底部导航栏](https://developer.android.google.cn/reference/kotlin/androidx/compose/material3/package-summary#navigationbar)
 
 首先制作一个非常常见的首页框架：底部有导航栏按钮，点击导航栏按钮切换上方的页面，上方页面也可以左右滑动翻页。新建一个文件命名为`HorizontalPagerIndex.kt`，代码如下：
@@ -529,11 +529,11 @@ fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateT
 
 
 
-所以这就该用到`ViewModel`和`LiveData`了，参考资料：[ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel?hl=zh_cn)
+所以这就该用到`ViewModel`和`LiveData`了，参考资料：[ViewModel](https://developer.android.google.cn/topic/libraries/architecture/viewmodel?hl=zh_cn)
 
 
 
-另外扩展阅读：[可组合项的生命周期](https://developer.android.com/develop/ui/compose/lifecycle?hl=zh-cn)
+另外扩展阅读：[可组合项的生命周期](https://developer.android.google.cn/develop/ui/compose/lifecycle?hl=zh-cn)
 
 ## 简介
 
@@ -809,7 +809,7 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
 
 # 顶部应用栏
 
-参考资料：[应用栏](https://developer.android.com/develop/ui/compose/components/app-bars?hl=zh-cn)
+参考资料：[应用栏](https://developer.android.google.cn/develop/ui/compose/components/app-bars?hl=zh-cn)
 
 ## 首页
 
@@ -901,7 +901,7 @@ NavHost(
 
 # 网格布局
 
-参考资料：[延迟网格](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#lazy-grids)
+参考资料：[延迟网格](https://developer.android.google.cn/develop/ui/compose/lists?hl=zh-cn#lazy-grids)
 
 这里即将用到的延迟网格和官方教程示例里用过的延迟行列，显然和`RecyclerView`有着非常相似的行为
 
@@ -962,7 +962,7 @@ fun CategoryGrid(categories: List<TopicCategory>?, onNavigateToTopicList: (route
 
 # 延迟列表
 
-参考资料：[延迟列表](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#lazy)
+参考资料：[延迟列表](https://developer.android.google.cn/develop/ui/compose/lists?hl=zh-cn#lazy)
 
 官方入门示例中已经试用过了，这次我们把它加上`ViewModel`一起用来实现主题列表内容的展示，并配上`自动加载更多`功能：
 
@@ -1024,7 +1024,7 @@ fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier
 }
 ```
 
-这里使用了key参数来优化性能，另外官方表示[延迟布局在调试模式下性能较差](https://developer.android.com/develop/ui/compose/lists?hl=zh-cn#measuring-performance)，属于正常情况。
+这里使用了key参数来优化性能，另外官方表示[延迟布局在调试模式下性能较差](https://developer.android.google.cn/develop/ui/compose/lists?hl=zh-cn#measuring-performance)，属于正常情况。
 
 4. 使用`LazyTopicList`替换`TopicListComposable`中原先的占位文本
 
@@ -1033,7 +1033,7 @@ fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier
 参考资料：
 
 - [Material Design 3](https://developer.android.google.cn/develop/ui/compose/designsystems/material3?hl=hr)
-- [卡片](https://developer.android.com/develop/ui/compose/components/card?hl=zh-cn)
+- [卡片](https://developer.android.google.cn/develop/ui/compose/components/card?hl=zh-cn)
 
 `Jetpack Compose`的主题和配色配置集中在`项目目录/ui/theme`下
 
