@@ -623,6 +623,89 @@ fun IndexComposable(route: IndexRoute = IndexRoute(), onNavigateToTopicList: (ro
 
 运行APP即可看到文本框中的数字先是0，请求完成后则变为对应数字
 
+## 封装LiveData
+
+使用`ViewModel`时我们会发现如下模式经常会出现：
+
+1. 定义一个`LiveData`保存数据
+2. 定义一个方法请求数据并更新到`LiveData`，更新之前可能需要预先处理
+3. 请求数据之前需要判断，如下情况时不执行请求：
+   - 当前正在执行请求
+   - 非强制更新，且已有数据尚可用（如获取时间较近）
+
+按照以上需求对`LiveData`进行封装：
+
+```kotlin
+/**
+ * LiveData封装
+ * @param T 响应对象类型
+ * @param D 需要保存的数据类型
+ * @param P 请求参数类型
+ * @param requestMethod 请求方法
+ * @param bodyTransform 响应对象到保存数据的转换方法
+ * @constructor
+ */
+class LiveDataStore<T, D, P>(
+    private val requestMethod: LiveDataStore<T, D, P>.(P) -> Call<T>,
+    private val bodyTransform: LiveDataStore<T, D, P>.(T) -> D?,
+) {
+    val liveData = MutableLiveData<D>()
+    val loading = MutableLiveData(false)
+
+    private var lastSuccess = 0L
+
+    /**
+     * 获取数据
+     * @param param 参数，如果类型为 [Unit] 则传 [Unit]
+     * @param force 是否强制刷新
+     * @param expire 缓存过期时长
+     */
+    fun fetch(param: P, force: Boolean = false, expire: Long = 60L) {
+        // 如果当前正在请求 则 跳过
+        if (loading.value == true) return
+        // 如果非强制请求， 且数据未过期 则 跳过
+        if (!force && System.currentTimeMillis() / 1000 - lastSuccess <= expire) return
+        // 开始请求
+        loading.value = true
+        val store = this
+        requestMethod(param).enqueue(object : Callback<T> {
+            override fun onResponse(call: Call<T>, response: Response<T>) {
+                loading.value = false
+                val code = response.code()
+
+                if (code == 200) {
+                    // 请求成功更新数据和上次成功时间
+                    liveData.value = response.body()?.let { bodyTransform.invoke(store, it) }
+                    lastSuccess = System.currentTimeMillis() / 1000
+                } else {
+                    // 请求失败
+                    App.toast("$code: ${response.message()}")
+                }
+            }
+
+            /**
+             * 网络故障等导致的请求失败
+             * @param call Call<T>
+             * @param throwable Throwable
+             */
+            override fun onFailure(call: Call<T>, throwable: Throwable) {
+                loading.value = false
+                App.onFailed(throwable)
+            }
+        })
+    }
+}
+```
+
+使用时传入两个方法即可：
+
+```kotlin
+val unreadCount = LiveDataStore<Res<UnreadCount>, UnreadCount, Unit>(
+    requestMethod = { api.getUnreadCount() },
+    bodyTransform = { it.data },
+)
+```
+
 # 图片加载
 
 官方推荐使用`Coil`库来加载图片：[Coil文档](https://github.com/coil-kt/coil/blob/main/README-zh.md)
@@ -1257,3 +1340,15 @@ fun LoginDialog(onSuccess: (uid: Int?, token: String?) -> Unit = { _, _ -> }, on
     }
 }
 ```
+
+# 分页数据加载和延迟列表
+
+参考资料：[Paging](https://developer.android.google.cn/topic/libraries/architecture/paging/v3-overview?hl=zh-cn)
+
+## 导入依赖
+
+```groovy
+implementation "androidx.paging:paging-runtime:3.3.2"
+implementation "androidx.paging:paging-compose:3.3.2"
+```
+
