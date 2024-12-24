@@ -629,6 +629,7 @@ fun IndexComposable(route: IndexRoute = IndexRoute(), onNavigateToTopicList: (ro
 
 1. 定义一个`LiveData`保存数据
 2. 定义一个方法请求数据并更新到`LiveData`，更新之前可能需要预先处理
+3. 请求的数据无需参数，且获得的数据相对静态不需要频繁更新
 3. 请求数据之前需要判断，如下情况时不执行请求：
    - 当前正在执行请求
    - 非强制更新，且已有数据尚可用（如获取时间较近）
@@ -637,17 +638,16 @@ fun IndexComposable(route: IndexRoute = IndexRoute(), onNavigateToTopicList: (ro
 
 ```kotlin
 /**
- * LiveData封装
+ * 可缓存LiveData封装
  * @param T 响应对象类型
  * @param D 需要保存的数据类型
- * @param P 请求参数类型
  * @param requestMethod 请求方法
  * @param bodyTransform 响应对象到保存数据的转换方法
  * @constructor
  */
-class LiveDataStore<T, D, P>(
-    private val requestMethod: LiveDataStore<T, D, P>.(P) -> Call<T>,
-    private val bodyTransform: LiveDataStore<T, D, P>.(T) -> D?,
+class CachedLiveData<T, D>(
+    private val requestMethod: CachedLiveData<T, D>.() -> Call<T>,
+    private val bodyTransform: CachedLiveData<T, D>.(T) -> D?,
 ) {
     val liveData = MutableLiveData<D>()
     val loading = MutableLiveData(false)
@@ -656,11 +656,10 @@ class LiveDataStore<T, D, P>(
 
     /**
      * 获取数据
-     * @param param 参数，如果类型为 [Unit] 则传 [Unit]
      * @param force 是否强制刷新
-     * @param expire 缓存过期时长
+     * @param expire 缓存过期时长（秒）
      */
-    fun fetch(param: P, force: Boolean = false, expire: Long = 60L) {
+    fun fetch(force: Boolean = false, expire: Long = 300L) {
         // 如果当前正在请求 则 跳过
         if (loading.value == true) return
         // 如果非强制请求， 且数据未过期 则 跳过
@@ -668,7 +667,7 @@ class LiveDataStore<T, D, P>(
         // 开始请求
         loading.value = true
         val store = this
-        requestMethod(param).enqueue(object : Callback<T> {
+        requestMethod().enqueue(object : Callback<T> {
             override fun onResponse(call: Call<T>, response: Response<T>) {
                 loading.value = false
                 val code = response.code()
@@ -700,7 +699,7 @@ class LiveDataStore<T, D, P>(
 使用时传入两个方法即可：
 
 ```kotlin
-val unreadCount = LiveDataStore<Res<UnreadCount>, UnreadCount, Unit>(
+val unreadCount = CachedLiveData<Res<UnreadCount>, UnreadCount, Unit>(
     requestMethod = { api.getUnreadCount() },
     bodyTransform = { it.data },
 )
@@ -1341,7 +1340,7 @@ fun LoginDialog(onSuccess: (uid: Int?, token: String?) -> Unit = { _, _ -> }, on
 }
 ```
 
-# 分页数据加载和下拉刷新
+# 分页数据加载
 
 参考资料：
 
@@ -1473,3 +1472,71 @@ fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier
     }
 }
 ```
+
+5. 这里我们修改`TopicListComposable`，直接取消`LazyTopicList`的封装，并给列表增加刷新功能：
+
+```kotlin
+/**
+ * 主题路线组件
+ * @param route 路线
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopicListComposable(route: TopicListRoute, onPopBackStack: () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
+    // 社区首页ViewModel
+    val communityIndexViewModel = viewModel<CommunityIndexViewModel>()
+    // 主题列表ViewModel
+    val topicListViewModel = viewModel<TopicListViewModel>()
+    //  加载主题分类
+    val categoryState = communityIndexViewModel.categories.liveData.observeAsState()
+    communityIndexViewModel.categories.fetch()
+    // paging加载主题列表
+    val lazyPagingItems = topicListViewModel.pager(route).collectAsLazyPagingItems()
+    val lazyListState = rememberLazyListState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(navigationIcon = {
+                IconButton(onClick = { onPopBackStack() }) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "后退")
+                }
+            }, actions = {
+                IconButton(onClick = {
+                    lazyPagingItems.refresh()
+                    coroutineScope.launch { lazyListState.scrollToItem(0, 0) }
+                }) {
+                    Icon(imageVector = Icons.Filled.Refresh, contentDescription = "刷新")
+                }
+            }, colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                titleContentColor = MaterialTheme.colorScheme.primary,
+            ), title = {
+                Text(categoryState.value?.firstOrNull { it.id == route.categoryId }?.name ?: "<主题分类>")
+            })
+        },
+    ) { innerPadding ->
+        val modifier = Modifier.padding(innerPadding)
+        LazyColumn(modifier = modifier,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            contentPadding = PaddingValues(4.dp),
+            state = lazyListState) {
+            items(lazyPagingItems.itemCount) {
+                TopicItem(lazyPagingItems[it]!!, it)
+            }
+        }
+    }
+}
+```
+
+# 下拉刷新
+
+参考资料：[下拉刷新](https://developer.android.com/develop/ui/compose/components/pull-to-refresh?hl=zh-cn)
+
+## 注意事项
+
+经测试`PullToRefreshBox`暂不适合与`Paging`的`lazyPagingItems`一同使用，因为`isRefreshing`属性更新时会触发其中的`LazyColumn`重组，光是修改2次该属性就会触发2次`lazyPagingItems`初始请求（非刷新操作）导致屏幕闪烁2次
+
+`PullToRefreshBox`更适合手动管理数据的情况
+
+`todo`
