@@ -1341,9 +1341,16 @@ fun LoginDialog(onSuccess: (uid: Int?, token: String?) -> Unit = { _, _ -> }, on
 }
 ```
 
-# 分页数据加载和延迟列表
+# 分页数据加载和下拉刷新
 
-参考资料：[Paging](https://developer.android.google.cn/topic/libraries/architecture/paging/v3-overview?hl=zh-cn)
+参考资料：
+
+- [Paging3](https://developer.android.google.cn/topic/libraries/architecture/paging/v3-overview?hl=zh-cn)
+- [挂起方法](https://blog.csdn.net/zyctimes/article/details/127140202)
+
+## 应用场景
+
+在一个延迟列表中加载所有分页数据，通过下滑来加载后续页数据，而不是指定跳转到某一页
 
 ## 导入依赖
 
@@ -1352,3 +1359,117 @@ implementation "androidx.paging:paging-runtime:3.3.2"
 implementation "androidx.paging:paging-compose:3.3.2"
 ```
 
+## 使用步骤
+
+1. 修改路线数据类：本例中涉及的查询接口并不使用常见的`page`和`size`参数来进行分页查询，而是通过前一次请求中返回的参数来查询下一页数据，因此我们首先需要修改路线数据类来保存这些返回的参数
+
+   ```kotlin
+   /**
+    * 主题列表路线
+    * @param queryType 查询类型
+    * @param userId 用户ID ， 查询用户发帖时使用
+    * @param themeId 话题ID
+    * @param categoryId 类型ID
+    * @param sortType 排序 todo
+    * @param hotValue 翻页参数：
+    * @param lastTid 翻页参数：
+    * @param pubTime 翻页参数：
+    * @param replyTime 翻页参数：
+    * @constructor
+    */
+   @Serializable
+   data class TopicListRoute(
+       val queryType: QueryType,
+       val userId: Int? = null,
+       val themeId: Int? = null,
+       val categoryId: Int? = null,
+       val sortType: Int = 1,
+       val hotValue: Int = 0,
+       val lastTid: Int = 0,
+       val pubTime: Int = 0,
+       val replyTime: Int = 0,
+   )
+   ```
+
+2. 定义分页数据源，继承`PagingSource`类，并实现它的两个方法，注意点：
+
+   - `PagingSource`的第一个泛型固定选择`Int`类型作为页码，除非你很懂它怎么用否则不要设置其他的
+   - `PagingSource`第二个泛型选择单个列表项的类型，本例中是`TopicInfo`（单个主题信息）
+   - `page`和`size`以外的参数需从构造方法中传入，这里传入了路线数据类对象
+   - `getRefreshKey`方法直接返回`null`即可
+   - `load`方法是加载数据的方法，我们需要在其中执行请求并返回结果，注意它是一个`suspend`挂起方法，意味着我们的请求方法也应当是挂起方法，直接以同步方式发送请求将会报错`NetworkOnMainThreadException`；如果你在`retrofit`的接口中的定义返回的是`Call<T>`类型，那么需要将其修改为返回`T`类型 的`suspend`方法，或者调用它的`await()`方法，本例中选择后者
+   - `load`方法的参数`params`中可以拿到`page`和`size`参数，但也不一定需要用上它们，本例中就只作为输出日志时使用
+   - 请求成功时返回`LoadResult.Page`，失败/错误时返回`LoadResult.Error`
+
+```kotlin
+class TopicInfoPagingSource(private var route: TopicListRoute) : PagingSource<Int, TopicInfo>() {
+    override fun getRefreshKey(state: PagingState<Int, TopicInfo>) = null
+
+    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, TopicInfo> {
+        val page = params.key ?: 1
+        val (queryType, userId, themeId, categoryId) = route
+        Log.i(TAG, "load: $page, size:${params.loadSize}, queryType:$queryType userId:$userId themeId:$themeId categoryId:$categoryId")
+        try {
+            // 发送请求
+            val response = App.INSTANCE.api.topicApi.list(
+                queryType = route.queryType,
+                userId = route.userId,
+                themeId = route.themeId,
+                categoryId = route.categoryId,
+                sortType = route.sortType,
+                hotValue = route.hotValue,
+                lastTid = route.lastTid,
+                pubTime = route.pubTime,
+                replyTime = route.replyTime,
+            ).await()
+
+            // 响应结果
+            val topicPage = response.data ?: return LoadResult.Page(listOf(), null, null)
+
+            // 修改翻页数据
+            route = route.copy(
+                hotValue = topicPage.hotValue,
+                lastTid = topicPage.lastTid,
+                pubTime = topicPage.pubTime,
+                replyTime = topicPage.replyTime,
+            )
+            // 根据响应结果决定是否有下一页
+            val nextKey = if (topicPage.nextPage) page + 1 else null
+            // 返回结果
+            return LoadResult.Page(topicPage.list, null, nextKey)
+        } catch (e: Exception) {
+            // 处理异常
+            e.printStackTrace()
+            return LoadResult.Error(e)
+        }
+    }
+
+    companion object {
+        private val TAG = TopicInfoPagingSource::class.java.simpleName
+    }
+}
+```
+
+3. 在`TopicListViewModel`中定义`pager`方法，这里几乎是固定写法：
+   - `pageSize`参数如前所述不一定需要用上，但及时不需要使用也最好和实际情况匹配
+   - `initialLoadSize`表示首次加载的项目数量，应当设置为`pageSize`的整数倍，即相当于首次加载多少页，留空则为3倍
+
+```kotlin
+fun pager(route: TopicListRoute) = Pager(
+    config = PagingConfig(pageSize = 10, initialLoadSize = 20),
+    pagingSourceFactory = { TopicInfoPagingSource(route) }
+).flow.cachedIn(viewModelScope)
+```
+
+4. 最终使用，我们不再需要自己实现`加载更多`功能了，`LazyTopicList`可组合函数可以修改为非常简单：
+
+```kotlin
+@Composable
+fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier: Modifier = Modifier) {
+    val lazyPagingItems = viewModel.pager(route).collectAsLazyPagingItems()
+    // 列表状态
+    LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(4.dp)) {
+        items(lazyPagingItems.itemCount) { TopicItem(lazyPagingItems[it]!!, it) }
+    }
+}
+```
