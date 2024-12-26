@@ -894,8 +894,6 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
 }
 ```
 
-指示器也可以直接使用`HorizontalPagerIndicator`：[使用方法](https://juejin.cn/post/7312035308362350642)
-
 ## Loading动画
 
 使用`SubcomposeAsyncImage`组件替代`AsyncImage`即可，在`loading`属性中设置动画，如：
