@@ -707,13 +707,19 @@ val unreadCount = CachedLiveData<Res<UnreadCount>, UnreadCount, Unit>(
 
 # 图片加载
 
-官方推荐使用`Coil`库来加载图片：[Coil文档](https://github.com/coil-kt/coil/blob/main/README-zh.md)
+官方推荐使用`Coil`库来加载图片：
+
+- [Coili简介](https://github.com/coil-kt/coil/blob/main/README-zh.md)
+
+- [Coil官方文档](https://coil-kt.github.io/coil/)
 
 ## 导入依赖和官方示例
 
 ```groovy
 implementation("io.coil-kt.coil3:coil-compose:3.0.4")
 implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+// gif支持
+implementation("io.coil-kt.coil3:coil-gif:3.0.4")
 ```
 
 简单使用
@@ -769,7 +775,6 @@ fun Banner(banners: List<Banner>?) {
 说明：
 
 - 官方组件，需要比较新的`material3`版本，目前`compose-bom`的版本为`2024.12.01`，已支持该功能， 因为是近期添加的组件会有`实验性`的注解。
-
 - 官方的两种组件我试用了一下均不是我想要的功能：没有页数指示器，也没有自动翻页；和`HorizontalPager`比没有显著区别
 
 所以我们还是来自己做一个：
@@ -887,6 +892,16 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
         AsyncImage(model = it.imgAddr, contentDescription = null, modifier = Modifier.fillMaxWidth())
     }
 }
+```
+
+指示器也可以直接使用`HorizontalPagerIndicator`：[使用方法](https://juejin.cn/post/7312035308362350642)
+
+## Loading动画
+
+使用`SubcomposeAsyncImage`组件替代`AsyncImage`即可，在`loading`属性中设置动画，如：
+
+```kotlin
+SubcomposeAsyncImage(model = "图片URL", contentDescription = null, loading = { /* 圆形进度条 */ CircularProgressIndicator() })
 ```
 
 # 顶部应用栏
