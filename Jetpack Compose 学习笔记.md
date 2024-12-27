@@ -787,61 +787,97 @@ fun Banner(banners: List<Banner>?) {
    - 位于轮播图的内部还是外部，及距离底边的距离
 3. 可以选择是否自动滚动，且可以设置滚动间隔
 
+注意，这里的1、2两点的需求也是`图片全屏预览`功能所需要的，所以我们先来封装一个`带指示器的横向分页器`
 
+```kotlin
+/**
+ * 指示器配置
+ * @param selectedColor 已选中指示器颜色
+ * @param unselectedColor 未选中指示器颜色
+ * @param size 指示器大小
+ * @param spacing 指示器间隔
+ * @param range 指示器距离容器底边的距离
+ * @param shape 指示器形状
+ * @constructor
+ */
+data class IndicatorConfig(
+    val selectedColor: Color = Color.Blue,
+    val unselectedColor: Color = Color.Gray,
+    val size: Dp = 10.dp,
+    val spacing: Dp = 8.dp,
+    val range: Dp = 8.dp,
+    val shape: Shape = CircleShape,
+)
 
-定义：
+/**
+ * 带指示器的横向分页器
+ * @param T 数据类型
+ * @param data 数据列表
+ * @param pagerState [PagerState]
+ * @param pageSpacing 页间距
+ * @param backgroundColor 背景颜色
+ * @param indicatorConfig 指示器配置
+ * @param modifier Modifier
+ * @param item (T) -> Unit
+ */
+@Composable
+fun <T> HorizontalPagerWithIndicator(
+    data: List<T>,
+    pagerState: PagerState,
+    pageSpacing: Dp = 8.dp,
+    indicatorConfig: IndicatorConfig = IndicatorConfig(),
+    backgroundColor: Color = Color.DarkGray,
+    modifier: Modifier = Modifier,
+    item: @Composable (T) -> Unit
+) {
+    Box(Modifier.background(backgroundColor)) {
+        HorizontalPager(state = pagerState, modifier = modifier, pageSpacing = pageSpacing) { page -> item(data[page]) }
+
+        if (pagerState.pageCount > 1) {
+            // 页数指示器
+            indicatorConfig.apply {
+                Row(Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(range)) {
+                    repeat(data.size) {
+                        Box(Modifier
+                            .clip(shape)
+                            .background(if (it == pagerState.currentPage) selectedColor else unselectedColor)
+                            .width(size)
+                            .height(size))
+                        Spacer(Modifier.width(spacing))
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+然后我们的轮播图组件调用它并加上自动翻页即可：
 
 ```kotlin
 /**
  * 横向轮播图，带页数指示器及自动滚动
  * @param T 数据类型
- * @param list 数据列表
- * @param selectedColor 页数指示器：选中时的颜色
- * @param unselectedColor 页数指示器：未选中时的颜色
- * @param spotSize 页数指示器：大小
- * @param spotSpacing 页数指示器：间隔
- * @param spotsInside 页数指示器：在轮播图内还是外
- * @param spotsRange 页数指示器：距离轮播图底边的距离
- * @param spotShape 页数指示器：形状
+ * @param data 数据列表
+ * @param indicatorConfig 页数指示器配置
  * @param autoScrollDuration 自动滚动的间隔，设置为0则不滚动
  * @param item 渲染单个轮播图的方法
  */
 @Composable
 fun <T> HorizontalCarousel(
-    list: List<T>?,
-    selectedColor: Color = Color.Blue,
-    unselectedColor: Color = Color.Gray,
-    spotSize: Dp = 10.dp,
-    spotSpacing: Dp = 8.dp,
-    spotsInside: Boolean = true,
-    spotsRange: Dp = 8.dp,
-    spotShape: Shape = CircleShape,
+    data: List<T>,
+    indicatorConfig: IndicatorConfig = IndicatorConfig(),
     autoScrollDuration: Long = 5000L,
     item: @Composable (T) -> Unit
 ) {
-    val data = list?.takeIf { it.isNotEmpty() } ?: return
     val pagerState = rememberPagerState(pageCount = { data.size })
-
-    // 轮播图
-    @Composable
-    fun Pager() = HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth(), pageSpacing = 8.dp) { page -> item(data[page]) }
-
-    // 页数指示器
-    @Composable
-    fun Spots() {
-        repeat(data.size) {
-            Box(Modifier
-                .clip(spotShape)
-                .background(if (it == pagerState.currentPage) selectedColor else unselectedColor)
-                .width(spotSize)
-                .height(spotSize))
-            Spacer(Modifier.width(spotSpacing))
-        }
-    }
 
     // 自动滚动
     if (autoScrollDuration > 0) {
         val isDragged by pagerState.interactionSource.collectIsDraggedAsState()
+        // 当用户未操作时，才执行自动滚动
         if (isDragged.not()) {
             with(pagerState) {
                 var currentPageKey by remember { mutableIntStateOf(0) }
@@ -857,25 +893,15 @@ fun <T> HorizontalCarousel(
         }
     }
 
-    // 根据指示器是否在图片内决定布局
-    if (spotsInside) {
-        Box {
-            Pager()
-            Row(Modifier
-                .align(Alignment.BottomCenter)
-                .padding(spotsRange)) { Spots() }
-        }
-    } else {
-        Column {
-            Pager()
-            Spacer(Modifier.height(spotsRange))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { Spots() }
-        }
-    }
+    HorizontalPagerWithIndicator(data = data,
+        indicatorConfig = indicatorConfig,
+        pagerState = pagerState,
+        modifier = Modifier.fillMaxWidth(),
+        item = item)
 }
 ```
 
-使用：
+使用轮播图：
 
 ```kotlin
 /**
@@ -888,9 +914,9 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
     viewModel.obtainBanners()
     val bannerState = viewModel.banners.observeAsState()
 
-    HorizontalCarousel(bannerState.value) {
-        AsyncImage(model = it.imgAddr, contentDescription = null, modifier = Modifier.fillMaxWidth())
-    }
+    bannerState.value?.also { data ->
+            HorizontalCarousel(data) { AsyncImage(model = it.imgAddr, contentDescription = null, modifier = Modifier.fillMaxWidth()) }
+        }
 }
 ```
 
@@ -901,6 +927,130 @@ fun CommunityIndex(viewModel: CommunityIndexViewModel, onNavigateToTopicList: (r
 ```kotlin
 SubcomposeAsyncImage(model = "图片URL", contentDescription = null, loading = { /* 圆形进度条 */ CircularProgressIndicator() })
 ```
+
+可以直接封装一下：
+
+```kotlin
+@Composable
+fun MyImage(
+    model: Any? = null,
+    modifier: Modifier = Modifier,
+    loading: @Composable () -> Unit = { /* 圆形进度条 */ CircularProgressIndicator() },
+) = SubcomposeAsyncImage(model = model, contentDescription = null, modifier = modifier, loading = { loading() })
+```
+
+## 图片全屏预览
+
+这里我们设定的需求为：点击**一组图片**中的任意一张打开全屏预览界面，可翻页浏览该组的图片，因此定义组件：
+
+```kotlin
+/**
+ * 图片预览组件
+ * @param urls 图片地址列表
+ * @param initialIndex 初始位置，与初始url至少填写一个
+ * @param initialUrl 初始url，与初始位置至少填写一个
+ * @param modifier Modifier
+ */
+@Composable
+fun ImagePreViewer(
+    urls: List<String>,
+    initialIndex: Int? = null,
+    initialUrl: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val initIndex = (initialIndex ?: initialUrl?.let { urls.indexOf(it) })?.takeIf { it >= 0 } ?: throw RuntimeException("初始位置和初始url至少需提供一个且不小于0")
+    val pagerState = rememberPagerState(initialPage = initIndex, pageCount = { urls.size })
+
+    HorizontalPagerWithIndicator(data = urls,
+        indicatorConfig = IndicatorConfig().copy(range = 30.dp),
+        pagerState = pagerState,
+        modifier = modifier) {
+        SubcomposeAsyncImage(model = it, contentDescription = null, modifier = Modifier.fillMaxWidth(), loading = { CircularProgressIndicator() })
+    }
+}
+```
+
+然后按照前述方式定义为导航目的地即可：
+
+```kotlin
+/**
+ * 扩展方法
+ * @receiver [NavGraphBuilder]
+ */
+fun NavGraphBuilder.imagePreView() = composable<ImagePreViewRoute>(
+    // 从屏幕右侧进入，持续500毫秒
+    enterTransition = { slideInHorizontally(tween(500)) { it } },
+    // 从屏幕右侧退出，持续500毫秒
+    exitTransition = { slideOutHorizontally(tween(500)) { it } }) {
+    ImagePreViewComposable(route = it.toRoute())
+}
+
+/**
+ * 图片预览路线
+ * @param url 需要展示的图片的url
+ * @param urls 如果需要翻页功能传入此项, url参数需出现在其中
+ * @constructor
+ */
+@Serializable
+data class ImagePreViewRoute(
+    val url: String,
+    val urls: List<String> = listOf(url)
+)
+
+@Composable
+fun ImagePreViewComposable(route: ImagePreViewRoute) {
+    ImagePreViewer(urls = route.urls, initialUrl = route.url, modifier = Modifier.fillMaxSize())
+}
+```
+
+### 添加手势操作
+
+参考资料：
+
+- [Jetpack Compose版来啦！高仿微信朋友圈大图缩放、切换、预览功能](https://juejin.cn/post/7091206855153877000)
+- [Jetpack Compose 实战之仿微信UI -实现朋友圈图片预览（四）](https://juejin.cn/post/7312035308362350642)
+
+这里直接将其封装为一个`支持手势缩放的图片`组件，替换原本的`SubcomposeAsyncImage`即可:
+
+```kotlin
+/**
+ * 支持手势缩放的图片
+ * - 可使用手势拖动、放大、旋转图片
+ * - 双击图片在 2倍 和 原始尺寸 切换
+ * @param model Any?
+ * @param modifier Modifier
+ */
+@Composable
+fun TransformableImage(model: Any? = null, modifier: Modifier = Modifier) {
+    // 缩放比例
+    var scale by remember { mutableFloatStateOf(1f) }
+    // 旋转角度
+    var rotation by remember { mutableFloatStateOf(0f) }
+    // 偏移量
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    // 监听手势变化
+    val state = rememberTransformableState(onTransformation = { zoomChange, offsetChange, rotationChange ->
+        // 限制最大放大倍数为4倍
+        scale = (zoomChange * scale).coerceAtMost(4f)
+        rotation += rotationChange
+        offset += offsetChange
+    })
+
+    SubcomposeAsyncImage(model = model, contentDescription = null, loading = { CircularProgressIndicator() }, modifier = modifier
+        .transformable(state = state)
+        .graphicsLayer(scaleX = scale, scaleY = scale, rotationZ = rotation, translationX = offset.x, translationY = offset.y)
+        .pointerInput(Unit) {
+            detectTapGestures(onDoubleTap = {
+                scale = if (scale <= 1f) 2f else 1f
+                offset = Offset.Zero
+                rotation = 0f
+            })
+        })
+}
+```
+
+注意：这里手势的响应范围是图片的原始大小范围，翻页操作需在此范围外进行，可以给图片增加一个背景颜色来提示用户操作范围
 
 # 顶部应用栏
 
