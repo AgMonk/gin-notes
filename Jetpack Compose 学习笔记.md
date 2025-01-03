@@ -1614,7 +1614,7 @@ class TopicInfoPagingSource(private var route: TopicListRoute) : PagingSource<In
 
 3. 在`TopicListViewModel`中定义`pager`方法，这里几乎是固定写法：
    - `pageSize`参数如前所述不一定需要用上，但及时不需要使用也最好和实际情况匹配
-   - `initialLoadSize`表示首次加载的项目数量，应当设置为`pageSize`的整数倍，即相当于首次加载多少页，留空则为3倍
+   - `initialLoadSize`表示首次加载的项目数量，会从`LoadParams`传入到`load`方法中
 
 ```kotlin
 fun pager(route: TopicListRoute) = Pager(
