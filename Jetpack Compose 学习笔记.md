@@ -1612,15 +1612,18 @@ class TopicInfoPagingSource(private var route: TopicListRoute) : PagingSource<In
 }
 ```
 
-3. 在`TopicListViewModel`中定义`pager`方法，这里几乎是固定写法：
-   - `pageSize`参数如前所述不一定需要用上，但及时不需要使用也最好和实际情况匹配
-   - `initialLoadSize`表示首次加载的项目数量，会从`LoadParams`传入到`load`方法中
+3. 在`TopicListViewModel`中定义`getPagingData`方法，这里几乎是固定写法：
+   - `pageSize`参数如前所述不一定需要用上，但即使不需要使用也最好和实际情况匹配
+   - 由于`PagingData`对象中保存着(多次)执行请求得到的所有数据，我们需将其保存在`ViewModel`中，否则当使用它数据的组件重组时会调用`getPagingData`方法得到一个新的`PagingData`，原先请求的数据就没了。
+   - 具体表现为：当你的`LazyColumn`在前两三页的时候，如果你点击其中的项目导航到了别的页面，后退回来时它是刚刚你离开时的样子（正常）；而往后多翻几页之后回来会发现无论翻到多少页回来都是在前两三页的同一个位置；并且每次回来都会重新发送请求。
 
 ```kotlin
-fun pager(route: TopicListRoute) = Pager(
-    config = PagingConfig(pageSize = 10, initialLoadSize = 20),
+ private var pagingDataMap = hashMapOf<String, Flow<PagingData<TopicInfo>>>()
+
+fun getPagingData(route: TopicListRoute) = pagingDataMap[route.toString()] ?: Pager(
+    config = PagingConfig(pageSize = 10),
     pagingSourceFactory = { TopicInfoPagingSource(route) }
-).flow.cachedIn(viewModelScope)
+).flow.cachedIn(viewModelScope).also { pagingDataMap[route.toString()] = it }
 ```
 
 4. 最终使用，我们不再需要自己实现`加载更多`功能了，`LazyTopicList`可组合函数可以修改为非常简单：
@@ -1628,7 +1631,7 @@ fun pager(route: TopicListRoute) = Pager(
 ```kotlin
 @Composable
 fun LazyTopicList(route: TopicListRoute, viewModel: TopicListViewModel, modifier: Modifier = Modifier) {
-    val lazyPagingItems = viewModel.pager(route).collectAsLazyPagingItems()
+    val lazyPagingItems = viewModel.getPagingData(route).collectAsLazyPagingItems()
     // 列表状态
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(4.dp)) {
         items(lazyPagingItems.itemCount) { TopicItem(lazyPagingItems[it]!!, it) }
