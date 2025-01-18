@@ -176,6 +176,96 @@ class MainActivity : ComponentActivity() {
 fun DateTimeText(text: String) = Text("$text: ${ZonedDateTime.now().toLocalDateTime()}")
 ```
 
+# Datastore的封装和使用
+
+## 导入依赖
+
+```groovy
+implementation "androidx.datastore:datastore-preferences:1.1.2"
+```
+
+## 综述
+
+Datastore使用繁琐的问题就不赘述了，`View`框架下我们可以把它封装成委托对象，而`Compose`下的使用略有不同，这里我们将把它封装成`可组合函数`(一个`可组合函数`对应某个`Datastore`中的一个特定属性)，另外我们还希望这个封装可以跨项目使用
+
+## 第一步：扩展方法
+
+网上可以搜到标准流程的第一步是获取`Datastore`对象，然后用它的`edit`和`map`方法获取和修改数据
+
+```kotlin
+val Context.settings: DataStore<Preferences> by preferencesDataStore("settings")
+```
+
+这里`Datastore`的名称其实应当等到具体项目中去决定，且不排除有多个不同名称的`Datastore`，所以这里我们选择在`DataStore<Preferences>`类上增加扩展方法封装`获取`和`修改`逻辑：
+
+```kotlin
+suspend fun <T : Any> DataStore<Preferences>.setValue(preferencesKey: Preferences.Key<T>, value: T): Preferences = this.edit { p -> p[preferencesKey] = value }
+
+fun <T : Any> DataStore<Preferences>.getValue(preferencesKey: Preferences.Key<T>, defaultValue: T): Flow<T> = this.data.map { p -> p[preferencesKey] ?: defaultValue }
+
+```
+
+## 第二步：可组合函数
+
+然后标准流程会告诉你：用`remember`创造一个委托属性，然后用`LaunchedEffect`调用协程将其与`Datastore`的数据进行双向同步，这里我们将委托属性和协程部分一起封装到一个`可组合函数`中，并且把修改属性的方法传入到`content`中去让它来执行修改操作
+
+```kotlin
+
+/**
+ * Datastore中的属性管理器
+ * @param T 属性类型
+ * @param datastore DataStore<Preferences>
+ * @param preferencesKey Preferences.Key<T>
+ * @param defaultValue 默认值
+ * @param content 正文, value 为当前值，update 为修改属性值的方法
+ */
+@Composable
+fun <T : Any> StoreValue(
+    datastore: DataStore<Preferences>,
+    preferencesKey: Preferences.Key<T>,
+    defaultValue: T,
+    content: @Composable (value: T, update: (T) -> Unit) -> Unit
+) {
+    var setting by remember { mutableStateOf(defaultValue) }
+
+    val scope = rememberCoroutineScope()
+    // Datastore 中的值变化时，同步到 setting 变量
+    LaunchedEffect(Unit) {
+        datastore.getValue(preferencesKey, defaultValue).collect { setting = it }
+    }
+    // 正文内容，传入修改setting的方法
+    content(setting) {
+        scope.launch { datastore.setValue(preferencesKey, it) }
+    }
+}
+```
+
+## 第三部：实际使用
+
+接下来的操作位于实际项目中：新建一个文件`AppSettings`，我们将在这个文件中定义一个`Datastore`以及它其中有哪些属性，而这个`Datastore`甚至可以是`private`的，因为我们并不直接操作它
+
+```kotlin
+private val Context.settings by preferencesDataStore("settings")
+```
+
+然后注意了在这里：`函数` = `属性`，一个`可组合函数`对应这个`Datastore`中的一个特定属性，这里的实例属性是一个布尔值，它用来控制某个组件的显示，默认值为`false`：
+
+```kotlin
+@Composable
+fun ShowSomething(content: @Composable (value: Boolean, update: (Boolean) -> Unit) -> Unit) =
+    StoreValue(LocalContext.current.settings, booleanPreferencesKey("test_switch"), false, content)
+```
+
+接下来使用这个函数（属性），可以看到开关的状态直接控制了文本的显示与否
+
+```kotlin
+ShowSomething { v, update -> Switch(v, onCheckedChange = { update(it) }) }
+
+ShowSomething { v, _ -> if (v) Text("测试文本") }
+```
+
+如此一来，讨厌的`PreferencesKey`只在定义属性的时候写一次，通过`可组合函数`也能很容易地追踪这个属性在哪里被用到了
+
 # Navigation
 
 ## 综述
