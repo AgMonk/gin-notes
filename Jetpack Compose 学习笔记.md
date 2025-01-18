@@ -240,6 +240,23 @@ fun <T : Any> StoreValue(
 }
 ```
 
+另外，以上封装泛型`<T>`仅支持那几种基础类型的`preferencesKey`，我们可以进一步扩展支持一下`能与这些基础类型进行双向转换的其他类型`，比如枚举类型
+
+```kotlin
+@Composable
+fun <T : Any, E : Any> StoreValue(
+    datastore: DataStore<Preferences>,
+    preferencesKey: Preferences.Key<T>,
+    defaultValue: E,
+    encode: (E) -> T,
+    decode: (T) -> E,
+    content: @Composable (value: E, updateE: (E) -> Unit) -> Unit
+) = StoreValue(datastore, preferencesKey, encode(defaultValue)) { t, update ->
+    content(decode(t)) { update(encode(it)) }
+}
+
+```
+
 ## 第三部：实际使用
 
 接下来的操作位于实际项目中：新建一个文件`AppSettings`，我们将在这个文件中定义一个`Datastore`以及它其中有哪些属性，而这个`Datastore`甚至可以是`private`的，因为我们并不直接操作它
@@ -265,6 +282,23 @@ ShowSomething { v, _ -> if (v) Text("测试文本") }
 ```
 
 如此一来，讨厌的`PreferencesKey`只在定义属性的时候写一次，通过`可组合函数`也能很容易地追踪这个属性在哪里被用到了
+
+
+
+额外的对于一个枚举类型`CommentSort`而言，可以这样定义：
+
+```kotlin
+@Composable
+fun DefaultCommentSort(content: @Composable (value: CommentSort, update: (CommentSort) -> Unit) -> Unit) =
+    StoreValue(datastore = LocalContext.current.settings,
+        preferencesKey = intPreferencesKey("default_comment_sort"),
+        defaultValue = CommentSort.NORMAL,
+        encode = { it.ordinal },
+        decode = { o -> CommentSort.entries.firstOrNull { it.ordinal == o } ?: CommentSort.NORMAL },
+        content)
+```
+
+
 
 # Navigation
 
