@@ -210,7 +210,6 @@ fun <T : Any> DataStore<Preferences>.getValue(preferencesKey: Preferences.Key<T>
 然后标准流程会告诉你：用`remember`创造一个委托属性，然后用`LaunchedEffect`调用协程将其与`Datastore`的数据进行双向同步，这里我们将委托属性和协程部分一起封装到一个`可组合函数`中，并且把修改属性的方法传入到`content`中去让它来执行修改操作
 
 ```kotlin
-
 /**
  * Datastore中的属性管理器
  * @param T 属性类型
@@ -221,20 +220,23 @@ fun <T : Any> DataStore<Preferences>.getValue(preferencesKey: Preferences.Key<T>
  */
 @Composable
 fun <T : Any> StoreValue(
-    datastore: DataStore<Preferences>,
-    preferencesKey: Preferences.Key<T>,
-    defaultValue: T,
-    content: @Composable (value: T, update: (T) -> Unit) -> Unit
+    datastore: DataStore<Preferences>, preferencesKey: Preferences.Key<T>, defaultValue: T, content: @Composable (value: T, update: (T) -> Unit) -> Unit
 ) {
     var setting by remember { mutableStateOf(defaultValue) }
+    // 正文是否渲染 （仅当第一次获取配置之后才渲染)
+    var show by remember { mutableStateOf(false) }
+
 
     val scope = rememberCoroutineScope()
     // Datastore 中的值变化时，同步到 setting 变量
     LaunchedEffect(Unit) {
-        datastore.getValue(preferencesKey, defaultValue).collect { setting = it }
+        datastore.getValue(preferencesKey, defaultValue).collect {
+            setting = it
+            show = true
+        }
     }
     // 正文内容，传入修改setting的方法
-    content(setting) {
+    if (show) content(setting) {
         scope.launch { datastore.setValue(preferencesKey, it) }
     }
 }
