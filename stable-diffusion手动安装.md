@@ -13,4 +13,4 @@ https://ghfast.top/
 ```
 stable-diffusion-webui\modules\launch_utils.py
 ```
-在所有的  _https://github.com_ 前面都增加这一段  _https://ghfast.top/_ 
+在所有的  _https://github.com_ 前面都增加上面这一段 
