@@ -14,7 +14,8 @@ https://ghfast.top/
 stable-diffusion-webui\modules\launch_utils.py
 ```
 在所有的  _https://github.com_ 前面都增加上面这一段 
-5. 运行这个脚本，会自动安装很多的依赖
+
+5. 运行这个脚本，会自动安装很多的依赖，将下载上GB的文件
 ```
 stable-diffusion-webui\webui-user.bat
 ```
