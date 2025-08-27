@@ -20,4 +20,4 @@ stable-diffusion-webui\modules\launch_utils.py
 stable-diffusion-webui\webui-user.bat
 ```
 
-6. 之后脚本会调用git去克隆其他很多个仓库，中间可能会失败，重新运行即可
+6. 之后脚本会调用git去克隆其他很多个仓库，中间可能会失败，重新运行即可；其中 **Installing requirements** 步骤可能耗时较长
