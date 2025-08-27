@@ -9,3 +9,8 @@ https://github.com/AUTOMATIC1111/stable-diffusion-webui
 ```
 https://ghfast.top/
 ```
+4. (可选）如果你的网络不太好，用记事本打开该文件
+```
+stable-diffusion-webui\modules\launch_utils.py
+```
+在所有的  _https://github.com_ 前面都增加这一段  _https://ghfast.top/_ 
